@@ -1,0 +1,8 @@
+.vscode/settings.json
+.idea/
+.gradle/
+.classpath
+.project
+.settings
+build/
+bin/
