@@ -2,68 +2,36 @@ package com.neocompounder.cneo;
 
 import io.neow3j.compiler.CompilationUnit;
 import io.neow3j.compiler.Compiler;
-import io.neow3j.contract.ContractManagement;
-import io.neow3j.contract.GasToken;
-import io.neow3j.contract.SmartContract;
-import io.neow3j.protocol.Neow3j;
-import io.neow3j.protocol.core.response.NeoApplicationLog;
-import io.neow3j.protocol.http.HttpService;
-import io.neow3j.transaction.AccountSigner;
-import io.neow3j.transaction.TransactionBuilder;
-import io.neow3j.types.Hash160;
-import io.neow3j.types.Hash256;
-import io.neow3j.types.NeoVMStateType;
-import io.neow3j.utils.Await;
-import io.neow3j.wallet.Account;
+import io.neow3j.contract.ContractUtils;
+import io.neow3j.contract.NefFile;
+import io.neow3j.protocol.core.response.ContractManifest;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.neow3j.types.ContractParameter.hash160;
-
 public class CompoundingNeoDeployment {
-
-    private static final String ALICE_WIF = "KzrHihgvHGpF9urkSbrbRcgrxSuVhpDWkSfWvSg97pJ5YgbdHKCQ";
-    private static final String NODE = "http://localhost:50012";
-
     public static void main(String[] args) throws Throwable {
-        Neow3j neow3j = Neow3j.build(new HttpService(NODE));
-
-        Account deploymentAccount = Account.fromWIF(ALICE_WIF);
-        if (new GasToken(neow3j).getBalanceOf(deploymentAccount).intValue() == 0) {
-            throw new RuntimeException("Alice has no GAS. If you're running a neo express instance run `neoxp " +
-                    "transfer 100 GAS genesis alice` in a terminal in the root directory of this project.");
-        }
-        AccountSigner signer = AccountSigner.none(deploymentAccount);
-
         Map<String, String> substitutions = new HashMap<>();
 
-        deployCompoundingNeo(signer, deploymentAccount.getScriptHash(), substitutions, neow3j);
+        deployCompoundingNeo(substitutions);
     }
 
-    private static Hash160 deployCompoundingNeo(AccountSigner signer, Hash160 owner,
-            Map<String, String> substitutions, Neow3j neow3j) throws Throwable {
+    private static void deployCompoundingNeo(Map<String, String> substitutions) throws Throwable {
+        CompilationUnit result = new Compiler().compile(CompoundingNeo.class.getCanonicalName(), substitutions);
 
-        CompilationUnit res = new Compiler().compile(CompoundingNeo.class.getCanonicalName(), substitutions);
-
-        TransactionBuilder builder = new ContractManagement(neow3j)
-                .deploy(res.getNefFile(), res.getManifest(), hash160(owner))
-                .signers(signer);
-
-        Hash256 txHash = builder.sign().send().getSendRawTransaction().getHash();
-        System.out.println("Deployment Transaction Hash: " + txHash.toString());
-        Await.waitUntilTransactionIsExecuted(txHash, neow3j);
-
-        NeoApplicationLog log = neow3j.getApplicationLog(txHash).send().getApplicationLog();
-        if (log.getExecutions().get(0).getState().equals(NeoVMStateType.FAULT)) {
-            throw new Exception(
-                    "Failed to deploy contract. NeoVM error message: " + log.getExecutions().get(0).getException());
+        String contractName = result.getManifest().getName();
+        if (contractName == null || contractName.length() == 0) {
+            throw new IllegalStateException("No contract name is set in the contract's manifest.");
         }
 
-        Hash160 contractHash = SmartContract.calcContractHash(signer.getScriptHash(),
-                res.getNefFile().getCheckSumAsInteger(), res.getManifest().getName());
-        System.out.println("Contract Hash: " + contractHash);
-        return contractHash;
-    }
+        Path buildRelativePath = Paths.get("", "build", "neow3j");
+        Path buildAbsolutePath = buildRelativePath.toAbsolutePath();
 
+        NefFile nef = result.getNefFile();
+        ContractUtils.writeNefFile(nef, contractName, buildAbsolutePath);
+        ContractManifest manifest = result.getManifest();
+        ContractUtils.writeContractManifestFile(manifest, buildAbsolutePath);
+    }
 }

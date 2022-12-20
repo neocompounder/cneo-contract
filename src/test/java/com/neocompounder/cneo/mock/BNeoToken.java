@@ -171,8 +171,7 @@ public class BNeoToken {
         // If someone sends NEO, mint and send bNEO
         else if (token.equals(neoContract.getHash())) {
             int mintQuantity = amount * 100000000;
-            mint(bneoHash, mintQuantity);
-            bneoContract.transfer(bneoHash, from, mintQuantity, null);
+            mint(from, mintQuantity);
         }
         // If someone sends GAS, burn bNEO and send NEO
         else if (token.equals(gasContract.getHash())) {

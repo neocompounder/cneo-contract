@@ -16,9 +16,9 @@ import io.neow3j.devpack.contracts.ContractManagement;
 import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.events.Event2Args;
 
-@DisplayName("GasBneoSwapPair")
+@DisplayName("FlamingoSwapRouter")
 @Permission(contract = "*", methods = "*")
-public class GasBneoSwapPair {
+public class FlamingoSwapRouter {
 
     private static StorageContext ctx = Storage.getStorageContext();
 
@@ -73,41 +73,26 @@ public class GasBneoSwapPair {
         return Storage.getHash160(ctx, OWNER_KEY);
     }
 
-    public static void setToken0(Hash160 token0) throws Exception {
-        validateOwner("setToken0");
-        validateHash160(token0, "token0");
-
-        Storage.put(ctx, TOKEN0_KEY, token0);
-    }
-
-    @Safe
-    public static Hash160 getToken0() {
-        return Storage.getHash160(ctx, TOKEN0_KEY);
-    }
-
-    public static void setToken1(Hash160 token1) throws Exception {
-        validateOwner("setToken1");
-        validateHash160(token1, "token1");
-
-        Storage.put(ctx, TOKEN1_KEY, token1);
-    }
-
-    @Safe
-    public static Hash160 getToken1() {
-        return Storage.getHash160(ctx, TOKEN1_KEY);
-    }
-
     // Since this is a mock, we only support one way swaps
     @OnNEP17Payment
     public static void onPayment(Hash160 from, int amount, Object data) throws Exception {
-        Hash160 inToken = Runtime.getCallingScriptHash();
-        Hash160 pairHash = Runtime.getExecutingScriptHash();
+        // Do nothing
+    }
 
-        if (inToken.equals(getToken0())) {
-            FungibleToken outToken = new FungibleToken(getToken1());
-            int outQuantity = outToken.balanceOf(pairHash);
-            outToken.transfer(pairHash, from, outQuantity, null);
+    public static boolean swapTokenInForTokenOut(Hash160 sender, int amountIn, int amountOutMin, Hash160[] paths, int deadLine) throws Exception {
+        Hash160 routerHash = Runtime.getExecutingScriptHash();
+
+        FungibleToken inToken = new FungibleToken(paths[0]);
+        FungibleToken outToken = new FungibleToken(paths[1]);
+        if (!inToken.transfer(sender, routerHash, amountIn, null)) {
+            throw new Exception("Failed to transfer inToken");
         }
+        int amountOut = outToken.balanceOf(routerHash);
+        if (!outToken.transfer(routerHash, sender, amountOut, null)) {
+            throw new Exception("Failed to transfer outToken");
+        }
+
+        return true;
     }
 
     private static void fireErrorAndAbort(String msg, String method) {
