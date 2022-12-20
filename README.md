@@ -19,9 +19,9 @@ They can later burn their `cNEO` tokens to redeem the underlying `NEO` or `bNEO`
 
 ### Testnet
 
-Contract Address: `Not yet deployed`
+Contract Address: `NQuumFouScN5pjNFcVA2SVSmDjdydoCaib`
 
-Script Hash: `Not yet deployed`
+Script Hash: `0xcc2ca40f55790a77a6813c7578a5920ca4c5d536`
 
 ### Mainnet
 
@@ -51,6 +51,9 @@ Compounding follows the following steps:
 5. The `cNEO` contract takes the remaining `GAS` and swaps it for `y bNEO` on the Flamingo `bNEO-GAS` pool.
 6. The `cNEO` contract updates `bneoReserves == x + y` 
 7. The `cNEO` contract rewards the caller of `compound` with enough GAS to fund the invocation fees and a little bit extra.
+
+An important consideration is that the call to `compound` is paid for *using the GAS balance of the `cNEO` contract*!
+The invoker risks simply receives a reward for their service.
 
 ### Burn
 After the first mint and comounding, we now have `x cNEO` backed by `x + y bNEO`.
@@ -114,19 +117,13 @@ account   is the address that wishes to mint cNEO
 quantity  is the quantity of the collateral token to be deposited
 ```
 
-#### Burn For NEO
+#### Burn For NEO *8(not implemented)**
 
-A user can burn `cNEO` to retrieve `NEO` by transferring `0.0001 GAS` to the `cNEO` contract with no parameters for each `NEO` they wish to retrieve.
-This `GAS` fee is necessary because it is charged by the `bNEO` contract for retrieving `NEO`. 
-
-```
-GAS.transfer(account, cNEO, quantity, null), where
-
-NEO       is the the GasToken contract
-account   is the address that wishes to mint cNEO
-cNEO      is the NeoCompounder contract
-quantity  is the quantity of the collateral token to be deposited
-```
+We have decided not to support burning `cNEO` directly for `NEO` in the `cNEO` contract.
+The primary reason is that it is difficult to ensure that this works at all times without making the contract fragile.
+When the underlying `bNEO` is burned for `NEO`, the `NEO` can be transferred from any one of the NeoBurger agents.
+Since agents can be added or removed at any time, it is difficult to ensure that the incoming `NEO` is from a NeoBurger agent.
+Web applications can still support burning `cNEO` for `NEO` by using `invokeMulti`.
 
 ### Compound
 
@@ -138,7 +135,10 @@ cNEO.compound(account), where
 cNEO      is the NeoCompounder contract
 account   is the address of the transaction signer
 ```
- 
+
+Because the call to `compound` must contain the `cNEO` contract as a valid witness for the `GAS` transfer to the `bNEO-GAS` pool
+and is expected to use GAS from the contract to fund the transaction, the signers and witnesses must be ordered as `(cNEO, account)`.
+
 ---
 
 ## Events
@@ -147,7 +147,7 @@ account   is the address of the transaction signer
   | ------ | ----------- |
   | Mint        | `(account, mintQuantity)` |
   | Burn        | `(account, burnQuantity)` |
-  | Transfer    | `(from, to, transferQuantity )` |
+  | Transfer    | `(from, to, transferQuantity)` |
   | Compound    | `(account, gasQuantity, bneoQuantity, treasuryCut)` |
   | TopUpGas    | `(account, topUpQuantity)` |
   | WithdrawGas | `(account, withdrawQuantity)` |
