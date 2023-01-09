@@ -5,13 +5,13 @@
 `NEO` is a native asset on the Neo blockchain that allows holders to claim GAS rewards in exchange for participating in Neo Governance through voting.
 
 
-`bNEO` is a token that encapsulates the voting process and allows holders to maximize their voting rewards without worrying about periodically casting a vote for a different candidate.
+`bNEO` (BurgerNeo) is a token that encapsulates the voting process and allows holders to maximize their voting rewards without worrying about periodically casting a vote for a different candidate.
 `1.00000000 bNEO` can be exchanged for `1 NEO` at any time.
 
 
-NeoCompounder introduces a new token `cNEO` that takes the `GAS` rewards from voting and compounds it into more underlying `bNEO`, with the end result being that each `cNEO` token becomes worth more and more `bNEO` over time.
+NeoCompounder introduces a new token `cNEO` (CompoundingNeo) that takes the `GAS` rewards from voting and compounds it into more underlying `bNEO`, with the end result being that each `cNEO` token becomes worth more and more `bNEO` over time.
 Users can mint new `cNEO` at any time by depositing `NEO` or `bNEO` in the `cNEO` contract and minting the equivalent value of `cNEO` tokens.
-They can later burn their `cNEO` tokens to redeem the underlying `NEO` or `bNEO`, which will be a greater quantity due to the `GAS` compounding.
+They can later burn their `cNEO` tokens to redeem the underlying `bNEO`, which will be a greater quantity due to the `GAS` compounding.
 
 ---
 
@@ -19,9 +19,9 @@ They can later burn their `cNEO` tokens to redeem the underlying `NEO` or `bNEO`
 
 ### Testnet
 
-Contract Address: `NQuumFouScN5pjNFcVA2SVSmDjdydoCaib`
+Contract Address: `NXcTkq8sBeq9VCFmcsETmRgd9PF8UACoet`
 
-Script Hash: `0xcc2ca40f55790a77a6813c7578a5920ca4c5d536`
+Script Hash: `0x707b8d33c178b6b755a1f0936140a23310df5180`
 
 ### Mainnet
 
@@ -50,10 +50,10 @@ Compounding follows the following steps:
 4. The `cNEO` contract takes the remaining `GAS` and swaps it for `bNEO` on Flamingo.
 5. The `cNEO` contract takes the remaining `GAS` and swaps it for `y bNEO` on the Flamingo `bNEO-GAS` pool.
 6. The `cNEO` contract updates `bneoReserves == x + y` 
-7. The `cNEO` contract rewards the caller of `compound` with enough GAS to fund the invocation fees and a little bit extra.
+7. The `cNEO` contract rewards the caller of `compound` with a small amount of GAS.
 
-An important consideration is that the call to `compound` is paid for *using the GAS balance of the `cNEO` contract*!
-The invoker risks simply receives a reward for their service.
+An invocation of `compound` is expected to cost `~0.23 GAS`.
+The caller will be rewarded with a small bonus over this quantty to cover the invocation fees and pourboire.
 
 ### Burn
 After the first mint and comounding, we now have `x cNEO` backed by `x + y bNEO`.
@@ -70,6 +70,7 @@ For example, if `x == 10` and `y == 1`, then each `bNEO` will now mint `1 / 1.1 
 
 Initially, `cNEO` will have a `maxSupply` of `1000000.00000000`.
 This is another mechanism to prevent attackers from profiting from the `compound` call, as this limits the size of the `GAS` swap.
+This cap is adjustable and will be revisited if it is ever close to being breached.
 
 ---
 
@@ -117,13 +118,12 @@ account   is the address that wishes to mint cNEO
 quantity  is the quantity of the collateral token to be deposited
 ```
 
-#### Burn For NEO *8(not implemented)**
+#### Burn For NEO **(not implemented)**
 
 We have decided not to support burning `cNEO` directly for `NEO` in the `cNEO` contract.
-The primary reason is that it is difficult to ensure that this works at all times without making the contract fragile.
-When the underlying `bNEO` is burned for `NEO`, the `NEO` can be transferred from any one of the NeoBurger agents.
-Since agents can be added or removed at any time, it is difficult to ensure that the incoming `NEO` is from a NeoBurger agent.
-Web applications can still support burning `cNEO` for `NEO` by using `invokeMulti`.
+The primary reason is that it is difficult to implement this while adhering to the paradigm of "burn `x cNEO` to receive `y bNEO`,
+both because `NEO` is indivisible and because NeoBurger charges a fee of `0.001 GAS` per redemption of ` bNEO`.
+Applications can still support burning `cNEO` for `NEO` by using `invokeMulti` if they wish.
 
 ### Compound
 
@@ -136,25 +136,42 @@ cNEO      is the NeoCompounder contract
 account   is the address of the transaction signer
 ```
 
-Because the call to `compound` must contain the `cNEO` contract as a valid witness for the `GAS` transfer to the `bNEO-GAS` pool
-and is expected to use GAS from the contract to fund the transaction, the signers and witnesses must be ordered as `(cNEO, account)`.
+Because the call to `compound` must contain the `cNEO` contract as a valid witness for the `GAS` transfer to the `bNEO-GAS` pool,
+the `cNEO` contract must also be listed as a witness on the transaction.
+To preclude the vulnerability in which an attacker repeatedly invokes FAULT transactions with the contract's `GAS` reserves,
+the signers and witnesses must be ordered as `(account, cNEO)`.
 
 ---
 
 ## Events
 
   | Event Name | Arguments |
-  | ------ | ----------- |
-  | Mint        | `(account, mintQuantity)` |
-  | Burn        | `(account, burnQuantity)` |
-  | Transfer    | `(from, to, transferQuantity)` |
-  | Compound    | `(account, gasQuantity, bneoQuantity, treasuryCut)` |
-  | TopUpGas    | `(account, topUpQuantity)` |
-  | WithdrawGas | `(account, withdrawQuantity)` |
+  | ---------------- | ----------- |
+  | Mint             | `(account, mintQuantity)` |
+  | Burn             | `(account, burnQuantity)` |
+  | Transfer         | `(from, to, transferQuantity)` |
+  | Compound         | `(account, gasQuantity, bneoQuantity, treasuryCut)` |
+  | TopUpGas         | `(account, topUpQuantity)` |
+  | WithdrawGas      | `(account, withdrawQuantity)` |
+  | CompoundReserves | `(gasQuantity, bneoQuantity)` |
+  | ConvertToNeo     | `(neoQuantity)` |
+  | ConvertToBneo    | `(bneoQuantity)` |
 
 ---
 
 ## Design Considerations
+
+### Simplicity
+
+NeoCompounder is intentionally designed to have a very narrow set of features that are implemented cleanly and elegantly.
+There are currently no plans to extend its feature set except to increase ease of use or protocol profitability.
+If you have ideas for additional features, please feel free to fork and deploy a smarter `cNEO`.
+
+### No Single Point of Failure
+
+NeoCompounder is designed to be able to operate in perpetuity even if the contract owner wallet is forever lost for whatever reason.
+Anyone can top up the `GAS` reserves of the contract if it is running a deficit, and anyone can call the `compound` method.
+Furthermore, because the contract is fully open-source, anyone can deploy a new version, withdraw their funds from the contract, and continue operations there.
 
 ### Incentivized Compounding
 
@@ -168,3 +185,8 @@ The `compoundPeriod` is adjustable and will be continuously tweaked to ensure th
 This is to ensure that it will not be profitable for an attacker to move the `bNEO-GAS` pool in anticipation of the `compound` call on the next block.
 Initially, `compoundPeriod` will be set to `1 week`.
 This can be set to `1 day` or even smaller depending on the eventual growth of `cNEO`.
+
+### Voting
+
+Although this will not be used in the beginning, `cNEO` has the ability to convert a portion of its `bNEO` reserves into `NEO` to vote directly.
+This is to ensure that there is a way for NeoCompounder to strategize separately if it becomes more `GAS`-efficient to directly vote using a part of its reserves without a contract update.

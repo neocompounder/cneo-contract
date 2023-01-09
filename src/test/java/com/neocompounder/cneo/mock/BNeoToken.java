@@ -19,7 +19,6 @@ import io.neow3j.devpack.annotations.SupportedStandard;
 import io.neow3j.devpack.constants.CallFlags;
 import io.neow3j.devpack.constants.NeoStandard;
 import io.neow3j.devpack.contracts.ContractManagement;
-import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.contracts.GasToken;
 import io.neow3j.devpack.contracts.NeoToken;
 import io.neow3j.devpack.events.Event2Args;
@@ -40,6 +39,7 @@ public class BNeoToken {
     // Keys
     private static byte[] OWNER_KEY = new byte[]{0x00};
     private static byte[] SUPPLY_KEY = new byte[]{0x01};
+    private static byte[] BURGER_AGENT_KEY = new byte[]{0x02};
 
     private static StorageMap BALANCE_MAP = new StorageMap(Storage.getStorageContext(), new byte[]{0x10});
 
@@ -120,6 +120,15 @@ public class BNeoToken {
         return Storage.getIntOrZero(ctx, SUPPLY_KEY);
     }
 
+    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {
+        Storage.put(ctx, BURGER_AGENT_KEY, burgerAgentHash);
+    }
+
+    @Safe
+    public static Hash160 getBurgerAgentScriptHash() {
+        return Storage.getHash160(ctx, BURGER_AGENT_KEY);
+    }
+
     public static boolean transfer(Hash160 from, Hash160 to, int amount, Object[] data) throws Exception {
         validateHash160(from, "from");
         validateHash160(to, "to");
@@ -153,7 +162,6 @@ public class BNeoToken {
     public static void onPayment(Hash160 from, int amount, Object data) throws Exception {
         Hash160 token = Runtime.getCallingScriptHash();
         Hash160 bneoHash = Runtime.getExecutingScriptHash();
-        FungibleToken bneoContract = new FungibleToken(bneoHash);
 
         GasToken gasContract = new GasToken();
         NeoToken neoContract = new NeoToken();
@@ -178,7 +186,7 @@ public class BNeoToken {
             int neoQuantity = amount / 100000;
             int bneoQuantity = neoQuantity * 100000000;
             burn(from, bneoQuantity);
-            neoContract.transfer(bneoHash, from, neoQuantity, null);
+            neoContract.transfer(bneoHash, getBurgerAgentScriptHash(), neoQuantity, from);
         }
     }
 

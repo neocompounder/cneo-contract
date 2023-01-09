@@ -16,9 +16,9 @@ import io.neow3j.devpack.contracts.ContractManagement;
 import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.events.Event2Args;
 
-@DisplayName("FlamingoSwapRouter")
+@DisplayName("BurgerAgent")
 @Permission(contract = "*", methods = "*")
-public class FlamingoSwapRouter {
+public class BurgerAgent {
 
     private static StorageContext ctx = Storage.getStorageContext();
 
@@ -74,7 +74,9 @@ public class FlamingoSwapRouter {
     // Since this is a mock, we only support one way swaps
     @OnNEP17Payment
     public static void onPayment(Hash160 from, int amount, Object data) throws Exception {
-        // Do nothing
+        FungibleToken token = new FungibleToken(Runtime.getCallingScriptHash());
+        Hash160 to = (Hash160) data;
+        token.transfer(Runtime.getExecutingScriptHash(), to, amount, null);
     }
 
     public static boolean swapTokenInForTokenOut(Hash160 sender, int amountIn, int amountOutMin, Hash160[] paths, int deadLine) throws Exception {
