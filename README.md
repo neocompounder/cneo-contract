@@ -2,7 +2,7 @@
 
 ## Introduction
 
-`NEO` is a native asset on the Neo blockchain that allows holders to claim GAS rewards in exchange for participating in Neo Governance through voting.
+`NEO` (Neo) is a native asset on the Neo blockchain that allows holders to claim GAS rewards in exchange for participating in Neo Governance through voting.
 
 
 `bNEO` (BurgerNeo) is a token that encapsulates the voting process and allows holders to maximize their voting rewards without worrying about periodically casting a vote for a different candidate.
@@ -10,12 +10,13 @@
 
 
 NeoCompounder introduces a new token `cNEO` (CompoundingNeo) that takes the `GAS` rewards from voting and compounds it into more underlying `bNEO`, with the end result being that each `cNEO` token becomes worth more and more `bNEO` over time.
+
 Users can mint new `cNEO` at any time by depositing `NEO` or `bNEO` in the `cNEO` contract and minting the equivalent value of `cNEO` tokens.
 They can later burn their `cNEO` tokens to redeem the underlying `bNEO`, which will be a greater quantity due to the `GAS` compounding.
 
 ---
 
-## Contract Hash
+## Contract Deployments
 
 ### Testnet
 
@@ -42,24 +43,22 @@ When a user decides to mint `cNEO`, they can transfer either `NEO` or `bNEO` to 
 If the user transfers `x bNEO`, the contract mints `x cNEO` for the user and updates `bneoReserves` to `x`.
 If the user transfers `x NEO`, the contract mints `x bNEO` by locking up this `NEO`, mints `x cNEO` for the user and updates `bneoReserves` to `x`.
 
-### Compounding
+### Compound
 Compounding follows the following steps:
 1. A caller invokes the `compound` method. This is only callable once every `compoundPeriod`.
 2. The `cNEO` contract claims `GAS` for all of its underlying `bNEO` reserves.
 3. The `cNEO` contract sets aside `feePercent GAS` for its operations.
-4. The `cNEO` contract takes the remaining `GAS` and swaps it for `bNEO` on Flamingo.
 5. The `cNEO` contract takes the remaining `GAS` and swaps it for `y bNEO` on the Flamingo `bNEO-GAS` pool.
-6. The `cNEO` contract updates `bneoReserves == x + y` 
+6. The `cNEO` contract updates `bneoReserves = x + y` 
 7. The `cNEO` contract rewards the caller of `compound` with a small amount of GAS.
 
 An invocation of `compound` is expected to cost `~0.23 GAS`.
-The caller will be rewarded with a small bonus over this quantty to cover the invocation fees and pourboire.
+The caller will be rewarded with a small bonus over this quantity to cover the invocation fees and pourboire.
 
 ### Burn
 After the first mint and comounding, we now have `x cNEO` backed by `x + y bNEO`.
 When a user burns `cNEO`, they will now receive `(x + y) / x bNEO` for every `cNEO` burned.
 For example, if `x == 10` and `y == 1`, then each `cNEO` can be burned for `1.1 bNEO`.
-The user can also burn `cNEO` to receive `NEO`, but will need to make a separate call to retrieve any fractional quantities in `bNEO`.
 
 ### Additional Mint
 We still have the ratio of `x cNEO` to `x + y bNEO`.
@@ -67,10 +66,13 @@ Any new `cNEO` mints will now be minted in the ratio of `x / (x + y) cNEO` per `
 For example, if `x == 10` and `y == 1`, then each `bNEO` will now mint `1 / 1.1 cNEO`.
 
 ### Max Supply
-
-Initially, `cNEO` will have a `maxSupply` of `1000000.00000000`.
+Initially, `cNEO` will have a `maxSupply` of `1_000_000.00000000`.
 This is another mechanism to prevent attackers from profiting from the `compound` call, as this limits the size of the `GAS` swap.
 This cap is adjustable and will be revisited if it is ever close to being breached.
+
+### Top Up GAS
+With enough `bNEO` reserves, NeoCompounder expects to be able to fund its own operations through the `feePercent GAS` that it sets aside from each compound operation.
+Until then, anyone can top up the contract's `GAS` reserves by tranferring `GAS` to the contract with a single string parameter `TOP_UP_GAS`.
 
 ---
 
@@ -88,7 +90,7 @@ bNEO.transfer(account, cNEO, quantity, null), where
 bNEO      is the NeoBurger contract
 account   is the address that wishes to mint cNEO
 cNEO      is the NeoCompounder contract
-quantity  is the quantity of the collateral token to be deposited
+quantity  is the quantity of bNEO to be converted into cNEO 
 ```
 
 #### Mint From NEO
@@ -101,7 +103,7 @@ NEO.transfer(account, cNEO, quantity, null), where
 NEO       is the the NeoToken contract
 account   is the address that wishes to mint cNEO
 cNEO      is the NeoCompounder contract
-quantity  is the quantity of the collateral token to be deposited
+quantity  is the quantity of NEO to be converted into cNEO 
 ```
 
 ### Burn
@@ -115,14 +117,14 @@ cNEO.transfer(account, cNEO, quantity, null), where
 
 cNEO      is the NeoCompounder contract
 account   is the address that wishes to mint cNEO
-quantity  is the quantity of the collateral token to be deposited
+quantity  is the quantity of cNEO to be converted into bNEO 
 ```
 
-#### Burn For NEO **(not implemented)**
+#### Burn For NEO *(not implemented)*
 
 We have decided not to support burning `cNEO` directly for `NEO` in the `cNEO` contract.
-The primary reason is that it is difficult to implement this while adhering to the paradigm of "burn `x cNEO` to receive `y bNEO`,
-both because `NEO` is indivisible and because NeoBurger charges a fee of `0.001 GAS` per redemption of ` bNEO`.
+The primary reason is that it is difficult to implement this while adhering to the paradigm of "burn `x cNEO` to receive `y bNEO`",
+both because `NEO` is indivisible and because NeoBurger charges a fee of `0.001 GAS` per redemption of `bNEO`.
 Applications can still support burning `cNEO` for `NEO` by using `invokeMulti` if they wish.
 
 ### Compound
