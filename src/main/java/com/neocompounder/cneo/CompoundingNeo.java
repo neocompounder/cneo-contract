@@ -354,7 +354,7 @@ public class CompoundingNeo {
         return getBneoReserves() + (getNeoReserves() * getBneoMultiplier());
     }
 
-    public static boolean transfer(Hash160 from, Hash160 to, int amount, Object[] data) throws Exception {
+    public static boolean transfer(Hash160 from, Hash160 to, int amount, Object data) throws Exception {
         validateHash160(from, "from");
         validateHash160(to, "to");
         validateNonNegativeNumber(amount, "amount");
@@ -885,7 +885,7 @@ public class CompoundingNeo {
         onBurn.fire(account, burnQuantity);
     }
 
-    private static void postTransfer(Hash160 from, Hash160 to, int quantity, Object[] data) {
+    private static void postTransfer(Hash160 from, Hash160 to, int quantity, Object data) {
         if ((new ContractManagement()).getContract(to) != null) {
             Contract.call(to, "onNEP17Payment", CallFlags.All, new Object[]{from, quantity, data});
         }
