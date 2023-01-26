@@ -90,13 +90,6 @@ public class CompoundingNeoTest {
 
     private static final String ABORT_MESSAGE = "The vm exited due to the following exception: ABORT is executed.";
     private static final String ASSERT_MESSAGE = "The vm exited due to the following exception: ASSERT is executed with false result.";
-    private static final String COMPOUND_PERIOD_POSITIVE_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'compoundPeriod'=-1 must be positive";
-    private static final String FEE_PERCENT_100_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'feePercent' must be <= 100";
-    private static final String FEE_PERCENT_POSITIVE_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'feePercent'=-1 must be positive";
-    private static final String GAS_REWARD_POSITIVE_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'gasReward'=-1 must be positive";
-    private static final String GAS_QUANTITY_RESERVES_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'remainingBalance'=-80010000000 must be positive";
-    private static final String BNEO_QUANTITY_RESERVES_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'bneoQuantity' must be smaller than the bNEO reserves";
-    private static final String NEO_QUANTITY_RESERVES_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'neoQuantity' must be smaller than the NEO reserves";
 
     @RegisterExtension
     private static ContractTestExtension ext = new ContractTestExtension();
@@ -379,7 +372,7 @@ public class CompoundingNeoTest {
             setCompoundPeriod(owner, new BigInteger("-1"));
         });
         actualMessage = exception.getMessage();
-        assertEquals(COMPOUND_PERIOD_POSITIVE_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         Hash256 txHash = setCompoundPeriod(owner, new BigInteger("3600000"));
 
@@ -416,7 +409,7 @@ public class CompoundingNeoTest {
             setFeePercent(owner, new BigInteger("-1"));
         });
         actualMessage = exception.getMessage();
-        assertEquals(FEE_PERCENT_POSITIVE_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         Hash256 txHash = setFeePercent(owner, new BigInteger("10"));
 
@@ -453,7 +446,7 @@ public class CompoundingNeoTest {
             setGasReward(owner, new BigInteger("-1"));
         });
         actualMessage = exception.getMessage();
-        assertEquals(GAS_REWARD_POSITIVE_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         Hash256 txHash = setGasReward(owner, new BigInteger("10000000"));
 
@@ -645,7 +638,7 @@ public class CompoundingNeoTest {
                     integer(new BigInteger("10000000000")), any(null));
         });
         actualMessage = exception.getMessage();
-        assertEquals(ABORT_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         // Once we reset the max supply, we can mint more cNEO
         setMaxSupply(owner, new BigInteger("100000000000000"));
@@ -672,7 +665,7 @@ public class CompoundingNeoTest {
             compoundReserves(owner, new BigInteger("100000000000"));
         });
         String actualMessage = exception.getMessage();
-        assertEquals(GAS_QUANTITY_RESERVES_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
                 integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
@@ -713,7 +706,7 @@ public class CompoundingNeoTest {
             convertToNeo(owner, new BigInteger("1500"));
         });
         String actualMessage = exception.getMessage();
-        assertEquals(BNEO_QUANTITY_RESERVES_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         // Only owner can convert to NEO
         exception = assertThrows(TransactionConfigurationException.class, () -> {
@@ -757,7 +750,7 @@ public class CompoundingNeoTest {
             convertToBneo(owner, new BigInteger("101"));
         });
         String actualMessage = exception.getMessage();
-        assertEquals(NEO_QUANTITY_RESERVES_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         // Only owner can convert to bNEO
         exception = assertThrows(TransactionConfigurationException.class, () -> {

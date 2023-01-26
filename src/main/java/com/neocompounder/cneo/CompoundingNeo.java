@@ -29,7 +29,6 @@ import io.neow3j.devpack.contracts.ContractManagement;
 import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.contracts.GasToken;
 import io.neow3j.devpack.contracts.NeoToken;
-import io.neow3j.devpack.contracts.StdLib;
 import io.neow3j.devpack.events.Event1Arg;
 import io.neow3j.devpack.events.Event2Args;
 import io.neow3j.devpack.events.Event3Args;
@@ -162,7 +161,7 @@ public class CompoundingNeo {
     
     // Lifecycle Methods
     @OnDeployment
-    public static void deploy(Object data, boolean update) throws Exception {
+    public static void deploy(Object data, boolean update) {
         if (!update) {
             final Hash160 owner = (Hash160) data;
             validateHash160(owner, "owner");
@@ -192,7 +191,7 @@ public class CompoundingNeo {
     }
     
     @OnVerification
-    public static boolean verify() throws Exception {
+    public static boolean verify() {
         // The owner is always verified
         if (Runtime.checkWitness(getOwner())) {
             return true;
@@ -221,7 +220,7 @@ public class CompoundingNeo {
     }
 
     // Contract Methods
-    public static void setOwner(Hash160 owner) throws Exception {
+    public static void setOwner(Hash160 owner) {
         validateOwner("setOwner");
         validateAccount(owner, "setOwner");
         validateHash160(owner, "owner");
@@ -235,7 +234,7 @@ public class CompoundingNeo {
         return Storage.getHash160(rtx, OWNER_KEY);
     }
     
-    public static void setBneoScriptHash(Hash160 bneoHash) throws Exception {
+    public static void setBneoScriptHash(Hash160 bneoHash) {
         validateOwner("setBneoScriptHash");
         validateContract(bneoHash, "bneoHash");
 
@@ -249,7 +248,7 @@ public class CompoundingNeo {
         return storageVal == null ? Hash160.zero() : storageVal;
     }
 
-    public static void setSwapPairScriptHash(Hash160 swapPairHash) throws Exception {
+    public static void setSwapPairScriptHash(Hash160 swapPairHash) {
         validateOwner("setSwapPairScriptHash");
         validateContract(swapPairHash, "swapPairHash");
 
@@ -263,7 +262,7 @@ public class CompoundingNeo {
         return storageVal == null ? Hash160.zero() : storageVal;
     }
 
-    public static void setSwapRouterScriptHash(Hash160 swapRouterHash) throws Exception {
+    public static void setSwapRouterScriptHash(Hash160 swapRouterHash) {
         validateOwner("setSwapRouterScriptHash");
         validateContract(swapRouterHash, "swapRouterHash");
 
@@ -277,7 +276,7 @@ public class CompoundingNeo {
         return storageVal == null ? Hash160.zero() : storageVal;
     }
 
-    private static void setLastCompounded(int lastCompounded) throws Exception {
+    private static void setLastCompounded(int lastCompounded) {
         validatePositiveNumber(lastCompounded, "lastCompounded");
 
         Storage.put(ctx, LAST_COMPOUNDED_KEY, lastCompounded);
@@ -288,7 +287,7 @@ public class CompoundingNeo {
         return Storage.getIntOrZero(rtx, LAST_COMPOUNDED_KEY);
     }
 
-    public static void setCompoundPeriod(int compoundPeriod) throws Exception {
+    public static void setCompoundPeriod(int compoundPeriod) {
         validateOwner("setCompoundPeriod");
         validatePositiveNumber(compoundPeriod, "compoundPeriod");
 
@@ -302,7 +301,7 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_COMPOUND_PERIOD : storageVal;
     }
 
-    public static void setFeePercent(int feePercent) throws Exception {
+    public static void setFeePercent(int feePercent) {
         validateOwner("setFeePercent");
         validatePositiveNumber(feePercent, "feePercent");
         assert feePercent <= getMaxFeePercent();
@@ -317,7 +316,7 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_FEE_PERCENT : storageVal;
     }
 
-    public static void setMaxFeePercent(int maxFeePercent) throws Exception {
+    public static void setMaxFeePercent(int maxFeePercent) {
         validateOwner("setMaxFeePercent");
         validatePositiveNumber(maxFeePercent, "maxFeePercent");
         assert maxFeePercent < 100;
@@ -331,7 +330,7 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_FEE_PERCENT : storageVal;
     }
 
-    public static void setMaxSupply(int maxSupply) throws Exception {
+    public static void setMaxSupply(int maxSupply) {
         validateOwner("setMaxSupply");
         validatePositiveNumber(maxSupply, "maxSupply");
         assert maxSupply >= totalSupply();
@@ -346,7 +345,7 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_SUPPLY : storageVal;
     }
 
-    public static void setGasReward(int gasReward) throws Exception {
+    public static void setGasReward(int gasReward) {
         validateOwner("setGasReward");
         validatePositiveNumber(gasReward, "gasReward");
         assert gasReward <= getMaxGasReward();
@@ -360,7 +359,7 @@ public class CompoundingNeo {
         return Storage.getIntOrZero(rtx, GAS_REWARD_KEY);
     }
 
-    public static void setMaxGasReward(int maxGasReward) throws Exception {
+    public static void setMaxGasReward(int maxGasReward) {
         validateOwner("setMaxGasReward");
         validatePositiveNumber(maxGasReward, "maxGasReward");
 
@@ -373,7 +372,7 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_GAS_REWARD : storageVal;
     }
 
-    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {
+    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) {
         validateOwner("setBurgerAgentScriptHash");
         validateContract(burgerAgentHash, "burgerAgentHash");
 
@@ -381,14 +380,14 @@ public class CompoundingNeo {
         onSetBurgerAgentScriptHash.fire(burgerAgentHash);
     }
 
-    public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {
+    public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) {
         validateOwner("unsetBurgerAgentScriptHash");
         validateHash160(burgerAgentHash, "burgerAgentHash");
 
         BNEO_AGENT_MAP.delete(burgerAgentHash.toByteArray());
     }
 
-    private static boolean isBurgerAgent(Hash160 burgerAgentHash) throws Exception {
+    private static boolean isBurgerAgent(Hash160 burgerAgentHash) {
         validateHash160(burgerAgentHash, "burgerAgentHash");
 
         final Boolean storageVal = BNEO_AGENT_MAP.getBoolean(burgerAgentHash.toByteArray());
@@ -406,7 +405,7 @@ public class CompoundingNeo {
     }
     
     @Safe
-    public static int balanceOf(Hash160 account) throws Exception {
+    public static int balanceOf(Hash160 account) {
         validateHash160(account, "account");
         return getBalance(account);
     }
@@ -431,7 +430,7 @@ public class CompoundingNeo {
         return getBneoReserves() + (getNeoReserves() * getBneoMultiplier());
     }
 
-    public static boolean transfer(Hash160 from, Hash160 to, int amount, Object data) throws Exception {
+    public static boolean transfer(Hash160 from, Hash160 to, int amount, Object data) {
         validateHash160(from, "from");
         validateHash160(to, "to");
         validateNonNegativeNumber(amount, "amount");
@@ -470,7 +469,7 @@ public class CompoundingNeo {
      *
      * @param gasQuantity the quantity of GAS to withdraw
      */
-    public static void withdrawGas(Hash160 account, int withdrawQuantity) throws Exception {
+    public static void withdrawGas(Hash160 account, int withdrawQuantity) {
         validateOwner("withdrawGas");
         validateAccount(account, "withdrawGas");
 
@@ -482,9 +481,7 @@ public class CompoundingNeo {
         validatePositiveNumber(remainingBalance, "remainingBalance");
 
         boolean transferSuccess = gasContract.transfer(cneoHash, account, withdrawQuantity, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to withdraw GAS", "withdrawGas");
-        }
+        assert transferSuccess;
         onWithdrawGas.fire(account, withdrawQuantity);
     }
 
@@ -494,7 +491,7 @@ public class CompoundingNeo {
      *
      * @param account the address of the transaction signer
      */
-    public static void compound(Hash160 account) throws Exception {
+    public static void compound(Hash160 account) {
         validateAccount(account, "compound");
         validateCompoundTime();
 
@@ -508,15 +505,11 @@ public class CompoundingNeo {
 
         // Send 0 NEO to self to claim GAS
         boolean transferSuccess = neoContract.transfer(cneoHash, cneoHash, 0, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to claim GAS from NEO", "compound");
-        }
+        assert transferSuccess;
 
         // Send 0 bNEO to the bNEO contract to receive GAS
         transferSuccess = bneoContract.transfer(cneoHash, bneoHash, 0, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to claim GAS from bNEO", "compound");
-        }
+        assert transferSuccess;
 
         int afterBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         int gasQuantity = afterBalance - beforeBalance;
@@ -526,9 +519,7 @@ public class CompoundingNeo {
 
         // Reward the invoker for a job well done
         transferSuccess = gasContract.transfer(cneoHash, account, getGasReward(), null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to transfer GAS reward to invoker", "compound");
-        }
+        assert transferSuccess;
 
         onCompound.fire(account, gasQuantity, bneoQuantity, treasuryCut);
     }
@@ -539,7 +530,7 @@ public class CompoundingNeo {
      *
      * @param gasQuantity the quantity of GAS reserves to compound
      */
-    public static void compoundReserves(int gasQuantity) throws Exception {
+    public static void compoundReserves(int gasQuantity) {
         validateOwner("compoundReserves");
         validatePositiveNumber(gasQuantity, "gasQuantity");
 
@@ -554,7 +545,7 @@ public class CompoundingNeo {
         onCompoundReserves.fire(gasQuantity, bneoQuantity);
     }
 
-    public static void vote(ECPoint candidate) throws Exception {
+    public static void vote(ECPoint candidate) {
         validateOwner("vote");
         validateECPoint(candidate, "vote");
 
@@ -569,34 +560,28 @@ public class CompoundingNeo {
      *
      * @param neoQuantity the quantity of NEO desired
      */
-    private static int convertToBneoInternal(int neoQuantity) throws Exception {
+    private static int convertToBneoInternal(int neoQuantity) {
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         NeoToken neoContract = new NeoToken();
 
         int bneoQuantity = neoQuantity * getBneoMultiplier();
 
-        if (neoQuantity > getNeoReserves()) {
-            throw new Exception("The parameter 'neoQuantity' must be smaller than the NEO reserves");
-        }
+        assert neoQuantity <= getNeoReserves();
 
         // Swap NEO for bNEO
         int beforeBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         boolean transferSuccess = neoContract.transfer(cneoHash, bneoHash, neoQuantity, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to swap NEO for bNEO", "convertToBneoInternal");
-        }
+        assert transferSuccess;
 
         int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         int actualBneoQuantity = afterBalance - beforeBalance;
-        if (bneoQuantity != actualBneoQuantity) {
-            fireErrorAndAbort("bneoQuantity != actualBneoQuantity", "convertToBneoInternal");
-        }
+        assert bneoQuantity == actualBneoQuantity;
 
         return bneoQuantity;
     }
 
-    public static void convertToBneo(int neoQuantity) throws Exception {
+    public static void convertToBneo(int neoQuantity) {
         validateOwner("convertToBneo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
 
@@ -608,7 +593,7 @@ public class CompoundingNeo {
         onConvertToBneo.fire(neoQuantity);
     }
 
-    public static void convertToNeo(int neoQuantity) throws Exception {
+    public static void convertToNeo(int neoQuantity) {
         validateOwner("convertToNeo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
 
@@ -619,28 +604,20 @@ public class CompoundingNeo {
 
         int bneoQuantity = neoQuantity * getBneoMultiplier();
 
-        if (bneoQuantity > getBneoReserves()) {
-            throw new Exception("The parameter 'bneoQuantity' must be smaller than the bNEO reserves");
-        }
+        assert bneoQuantity <= getBneoReserves();
 
         int gasQuantity = neoQuantity * GAS_FOR_NEO;
         int gasBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
 
-        if (gasQuantity > gasBalance) {
-            throw new Exception("The parameter 'gasQuantity' must be smaller than the GAS reserves");
-        }
+        assert gasQuantity <= gasBalance;
 
         int beforeBalance = (int) Contract.call(neoContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         boolean transferSuccess = gasContract.transfer(cneoHash, bneoHash, gasQuantity, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to swap bNEO for NEO", "convertToNeo");
-        }
+        assert transferSuccess;
 
         int afterBalance = (int) Contract.call(neoContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         int actualNeoQuantity = afterBalance - beforeBalance;
-        if (actualNeoQuantity != neoQuantity) {
-            fireErrorAndAbort("neoQuantity != actualNeoQuantity", "convertToNeo");
-        }
+        assert actualNeoQuantity == neoQuantity;
 
         deductFromBneoReserves(bneoQuantity);
         addToNeoReserves(neoQuantity);
@@ -649,7 +626,7 @@ public class CompoundingNeo {
     }
 
     @OnNEP17Payment
-    public static void onPayment(Hash160 from, int amount, Object data) throws Exception {
+    public static void onPayment(Hash160 from, int amount, Object data) {
         Hash160 tokenHash = Runtime.getCallingScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         Hash160 bneoHash = getBneoScriptHash();
@@ -760,7 +737,7 @@ public class CompoundingNeo {
      * @param account      the account that is withdrawing bNEO
      * @param cneoQuantity the quantity of cNEO to be burned
      */
-    private static void handleBneoWithdraw(Hash160 account, int cneoQuantity) throws Exception {
+    private static void handleBneoWithdraw(Hash160 account, int cneoQuantity) {
         validateHash160(account, "account");
         validateNonNegativeNumber(cneoQuantity, "cneoQuantity");
 
@@ -769,9 +746,7 @@ public class CompoundingNeo {
 
         int bneoQuantity = burnCneoForBneo(cneoQuantity, cneoHash);
         boolean transferSuccess = bneoContract.transfer(Runtime.getExecutingScriptHash(), account, bneoQuantity, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to transfer released bNEO to account", "handleBneoWithdraw");
-        }
+        assert transferSuccess;
     }
 
     /**
@@ -781,7 +756,7 @@ public class CompoundingNeo {
      * @param account     the account that is depositing NEO
      * @param neoQuantity the quantity of NEO to be converted into bNEO and locked
      */
-    private static void handleNeoDeposit(Hash160 account, int neoQuantity) throws Exception {
+    private static void handleNeoDeposit(Hash160 account, int neoQuantity) {
         validateHash160(account, "account");
         validateNonNegativeNumber(neoQuantity, "neoQuantity");
 
@@ -793,9 +768,7 @@ public class CompoundingNeo {
         int beforeBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
 
         boolean transferSuccess = neoContract.transfer(cneoHash, bneoHash, neoQuantity, null);
-        if (!transferSuccess) {
-            fireErrorAndAbort("Failed to swap NEO for bNEO", "handleNeoDeposit");
-        }
+        assert transferSuccess;
         
         int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         int bneoQuantity = afterBalance - beforeBalance;
@@ -809,7 +782,7 @@ public class CompoundingNeo {
      * @param account      the account that is depositing bNEO
      * @param bneoQuantity the quantity of bNEO to be locked
      */
-    private static void handleBneoDeposit(Hash160 account, int bneoQuantity) throws Exception {
+    private static void handleBneoDeposit(Hash160 account, int bneoQuantity) {
         validateHash160(account, "account");
         validateNonNegativeNumber(bneoQuantity, "bneoQuantity");
 
@@ -842,7 +815,7 @@ public class CompoundingNeo {
      * @param account      the account from which the cNEO is to be burned
      * @return the released bNeo quantity
      */
-    private static int burnCneoForBneo(int cneoQuantity, Hash160 account) throws Exception {
+    private static int burnCneoForBneo(int cneoQuantity, Hash160 account) {
         int bneoToCneoRatio = getReserveRatio();
         int computedBneoQuantity = (bneoToCneoRatio * cneoQuantity ) / FLOAT_MULTIPLIER;
         // bneoQuantity can be greater than bneoReserves due to float precision
@@ -866,9 +839,8 @@ public class CompoundingNeo {
         // Accounting
         int burnBneoQuantity = bneoQuantity - convertedBneoQuantity;
         int newBneoReserves = getBneoReserves();
-        if (newBneoReserves < burnBneoQuantity) {
-            throw new Exception("Attempted to burn more bNEO than the contract reserves");
-        }
+        assert burnBneoQuantity <= newBneoReserves;
+
         deductFromBneoReserves(bneoQuantity - convertedBneoQuantity);
 
         return bneoQuantity;
@@ -880,17 +852,14 @@ public class CompoundingNeo {
      * @param bneoQuantity the quantity of bNEO to be locked
      * @param account      the account to which the cNEO is to be minted
      */
-    private static void mintCneoFromBneo(int bneoQuantity, Hash160 account) throws Exception {
+    private static void mintCneoFromBneo(int bneoQuantity, Hash160 account) {
         int reserveRatio = getReserveRatio();
         // As total reserves increase, the quantity of cNEO minted per bNEO decreases
         int cneoQuantity = (FLOAT_MULTIPLIER * bneoQuantity) / reserveRatio;
 
         int newSupply = totalSupply() + cneoQuantity;
         int maxSupply = getMaxSupply();
-        if (newSupply > maxSupply) {
-            StdLib stdLib = new StdLib();
-            fireErrorAndAbort("New supply=" + stdLib.itoa(newSupply, 10) + " > max supply=" + stdLib.itoa(maxSupply, 10), "mintCneoFromBneo");
-        }
+        assert newSupply <= maxSupply;
         
         mint(account, cneoQuantity);
 
@@ -904,7 +873,7 @@ public class CompoundingNeo {
      * @param gasQuantity the quantity of incoming GAS
      * @return the quantity of bNEO added to the reserves
      */
-    private static int swapGasForBneo(int gasQuantity) throws Exception {
+    private static int swapGasForBneo(int gasQuantity) {
         validateNonNegativeNumber(gasQuantity, "gasQuantity");
 
         GasToken gasContract = new GasToken();
@@ -916,9 +885,8 @@ public class CompoundingNeo {
         Hash160[] paths = new Hash160[]{ gasContract.getHash(), bneoHash };
         int deadline = Runtime.getTime() + 30;
         boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(cneoHash, gasQuantity, 0, paths, deadline);
-        if (!swapSuccess) {
-            fireErrorAndAbort("Failed to swap GAS for bNEO", "swapGasForBneo");
-        }
+        assert swapSuccess;
+
         int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         int bneoQuantity = afterBalance - beforeBalance;
 
@@ -927,7 +895,7 @@ public class CompoundingNeo {
         return bneoQuantity;
     }
 
-    private static void mint(Hash160 account, int mintQuantity) throws Exception {
+    private static void mint(Hash160 account, int mintQuantity) {
         validateHash160(account, "account");
         validateNonNegativeNumber(mintQuantity, "mintQuantity");
 
@@ -941,18 +909,14 @@ public class CompoundingNeo {
         onMint.fire(account, mintQuantity);
     }
     
-    private static void burn(Hash160 account, int burnQuantity) throws Exception {
+    private static void burn(Hash160 account, int burnQuantity) {
         validateHash160(account, "account");
         validateNonNegativeNumber(burnQuantity, "burnQuantity");
 
         final int supply = totalSupply();
         final int accountBalance = getBalance(account);
-        if (supply < burnQuantity) {
-            throw new Exception("The parameter 'burnQuantity' must be smaller than the total supply");
-        }
-        if (accountBalance < burnQuantity) {
-            throw new Exception("The parameter 'burnQuantity' must be smaller than the account balance");
-        }
+        assert burnQuantity <= supply;
+        assert burnQuantity <= accountBalance;
 
         if (burnQuantity != 0) {
             deductFromSupply(burnQuantity);
@@ -1016,47 +980,45 @@ public class CompoundingNeo {
         return Helper.pow(10, bneoDecimals);
     }
 
-    private static void validateCompoundTime() throws Exception {
+    private static void validateCompoundTime() {
         int curTime = Runtime.getTime();
         int nextCompound = getLastCompounded() + getCompoundPeriod();
-        if (nextCompound > curTime) {
-            StdLib stdLib = new StdLib();
-            throw new Exception("Cannot compound until time=" + stdLib.itoa(nextCompound, 10) + ", curTime=" + stdLib.itoa(curTime, 10));
-        }
+        assert curTime >= nextCompound;
+
         setLastCompounded(curTime);
     }
     
-    private static void validateHash160(Hash160 hash, String hashName) throws Exception {
-        if (!Hash160.isValid(hash) || hash.isZero()) {
-            throw new Exception("The parameter '" + hashName + "' must be a 20-byte address");
-        }
+    private static void validateHash160(Hash160 hash, String hashName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // String message = "The parameter '" + hashName + "' must be a 20-byte address";
+        assert Hash160.isValid(hash) && !hash.isZero();
     }
 
-    private static void validateContract(Hash160 hash, String hashName) throws Exception {
+    private static void validateContract(Hash160 hash, String hashName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // String message = "The parameter '" + hashName + "' must be a contract hash";
         validateHash160(hash, hashName);
-        if ((new ContractManagement()).getContract(hash) == null) {
-            throw new Exception("The parameter '" + hashName + "' must be a contract hash");
-        }
+        assert (new ContractManagement()).getContract(hash) != null;
     }
 
-    private static void validateECPoint(ECPoint ecPoint, String hashName) throws Exception {
-        if (!ECPoint.isValid(ecPoint)) {
-            throw new Exception("The parameter '" + hashName + "' must be a 33-byte address");
-        }
+    private static void validateECPoint(ECPoint ecPoint, String hashName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // String message = "The parameter '" + hashName + "' must be a 33-byte address";
+        assert ECPoint.isValid(ecPoint);
     }
 
-    private static void validatePositiveNumber(int number, String numberName) throws Exception {
-        if (number <= 0) {
-            StdLib stdLib = new StdLib();
-            throw new Exception("The parameter '" + numberName + "'=" + stdLib.itoa(number, 10) + " must be positive");
-        }
+    private static void validatePositiveNumber(int number, String numberName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // StdLib stdLib = new StdLib();
+        // String message = "The parameter '" + numberName + "'=" + stdLib.itoa(number, 10) + " must be positive";
+        assert number > 0;
     }
 
-    private static void validateNonNegativeNumber(int number, String numberName) throws Exception {
-        if (number < 0) {
-            StdLib stdLib = new StdLib();
-            throw new Exception("The parameter '" + numberName + "'=" + stdLib.itoa(number, 10) + " must be non-negative");
-        }
+    private static void validateNonNegativeNumber(int number, String numberName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // StdLib stdLib = new StdLib();
+        // String message = "The parameter '" + numberName + "'=" + stdLib.itoa(number, 10) + " must be non-negative";
+        assert number >= 0;
     }
 
     private static void validateOwner(String method) {
