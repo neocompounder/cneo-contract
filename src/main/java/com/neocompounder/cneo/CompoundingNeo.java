@@ -137,6 +137,9 @@ public class CompoundingNeo {
     @DisplayName("SetOwner")
     private static Event1Arg<Hash160> onSetOwner;
 
+    @DisplayName("Update")
+    private static Event1Arg<ByteString> onUpdate;
+
     @DisplayName("SetSwapRouterScriptHash")
     private static Event1Arg<Hash160> onSetSwapRouterScriptHash;
 
@@ -177,10 +180,14 @@ public class CompoundingNeo {
     public static void update(ByteString script, String manifest) {
         validateOwner("update");
         (new ContractManagement()).update(script, manifest);
+        onUpdate.fire(script);
     }
 
     public static void destroy() {
         validateOwner("destroy");
+        // Total reserves may not be 0 due to int division
+        assert getTotalReserves() == 0 || totalSupply() == 0;
+
         (new ContractManagement()).destroy();
     }
     
