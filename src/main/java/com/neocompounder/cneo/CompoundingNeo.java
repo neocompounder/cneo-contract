@@ -339,7 +339,7 @@ public class CompoundingNeo {
 
     public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {
         validateOwner("unsetBurgerAgentScriptHash");
-        validateContract(burgerAgentHash, "burgerAgentHash");
+        validateHash160(burgerAgentHash, "burgerAgentHash");
 
         BNEO_AGENT_MAP.delete(burgerAgentHash.toByteArray());
     }
