@@ -187,6 +187,7 @@ public class CompoundingNeo {
     }
     
     @OnVerification
+    @Safe
     public static boolean verify() {
         Transaction tx = (Transaction) Runtime.getScriptContainer();
         ByteString script = tx.script;
