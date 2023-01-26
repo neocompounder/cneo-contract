@@ -155,6 +155,11 @@ public class CompoundingNeo {
     @DisplayName("SetBurgerAgentScriptHash")
     private static Event1Arg<Hash160> onSetBurgerAgentScriptHash;
     
+    @Struct
+    static class NEP17Payload {
+        String action;
+    }
+    
     // Lifecycle Methods
     @OnDeployment
     public static void deploy(Object data, boolean update) {
@@ -276,12 +281,6 @@ public class CompoundingNeo {
         return storageVal == null ? Hash160.zero() : storageVal;
     }
 
-    private static void setLastCompounded(int lastCompounded) {
-        validatePositiveNumber(lastCompounded, "lastCompounded");
-
-        Storage.put(ctx, LAST_COMPOUNDED_KEY, lastCompounded);
-    }
-
     @Safe
     public static int getLastCompounded() {
         return Storage.getIntOrZero(rtx, LAST_COMPOUNDED_KEY);
@@ -387,13 +386,6 @@ public class CompoundingNeo {
         BNEO_AGENT_MAP.delete(burgerAgentHash.toByteArray());
     }
 
-    private static boolean isBurgerAgent(Hash160 burgerAgentHash) {
-        validateHash160(burgerAgentHash, "burgerAgentHash");
-
-        final Boolean storageVal = BNEO_AGENT_MAP.getBoolean(burgerAgentHash.toByteArray());
-        return storageVal == null ? false : storageVal;
-    }
-
     @Safe
     public static String symbol() {
         return SYMBOL;
@@ -430,6 +422,25 @@ public class CompoundingNeo {
         return getBneoReserves() + (getNeoReserves() * getBneoMultiplier());
     }
 
+    /**
+     * Compute the (bNEO + NEO):cNEO ratio in this contract
+     *
+     * @return the ratio (bNEO + NEO reserves) / (cNEO supply), multiplied by {@link #FLOAT_MULTIPLIER}
+     */
+    @Safe
+    public static int getReserveRatio() {
+        int totalReserves = getTotalReserves();
+        int cneoSupply = totalSupply();
+
+        // Special case when cNEO supply is 0
+        if (cneoSupply == 0) {
+            return FLOAT_MULTIPLIER;
+        }
+
+        // Otherwise, this is a valid number
+        return (FLOAT_MULTIPLIER * totalReserves) / cneoSupply;
+    }
+
     public static boolean transfer(Hash160 from, Hash160 to, int amount, Object data) {
         validateHash160(from, "from");
         validateHash160(to, "to");
@@ -457,11 +468,6 @@ public class CompoundingNeo {
         postTransfer(from, to, amount, data);
 
         return true;
-    }
-    
-    @Struct
-    static class NEP17Payload {
-        String action;
     }
 
     /**
@@ -554,33 +560,6 @@ public class CompoundingNeo {
         neoContract.vote(cneoHash, candidate);
     }
 
-    /**
-     * This method swaps NEO reserves to bNEO reserves
-     * but **does not** handle the NEO/bNEO reserves accounting
-     *
-     * @param neoQuantity the quantity of NEO desired
-     */
-    private static int convertToBneoInternal(int neoQuantity) {
-        Hash160 bneoHash = getBneoScriptHash();
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        NeoToken neoContract = new NeoToken();
-
-        int bneoQuantity = neoQuantity * getBneoMultiplier();
-
-        assert neoQuantity <= getNeoReserves();
-
-        // Swap NEO for bNEO
-        int beforeBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
-        boolean transferSuccess = neoContract.transfer(cneoHash, bneoHash, neoQuantity, null);
-        assert transferSuccess;
-
-        int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
-        int actualBneoQuantity = afterBalance - beforeBalance;
-        assert bneoQuantity == actualBneoQuantity;
-
-        return bneoQuantity;
-    }
-
     public static void convertToBneo(int neoQuantity) {
         validateOwner("convertToBneo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
@@ -650,7 +629,7 @@ public class CompoundingNeo {
         }
 
         // Case 1: Called by self
-        if (from.equals(cneoHash)) {
+        else if (from.equals(cneoHash)) {
             // 1a) NEO transfer (GAS claim) - execution continues in compound
             if (tokenHash.equals(neoContract.getHash())) {
                 return;
@@ -661,7 +640,7 @@ public class CompoundingNeo {
         }
 
         // Case 2: Called by NeoBurger contract
-        if (from.equals(bneoHash)) {
+        else if (from.equals(bneoHash)) {
             // 2a) bNEO GAS claim - execution continues in compound
             if (tokenHash.equals(gasContract.getHash())) {
                 return;
@@ -731,6 +710,33 @@ public class CompoundingNeo {
     // Helper Methods
 
     /**
+     * This method swaps NEO reserves to bNEO reserves
+     * but **does not** handle the NEO/bNEO reserves accounting
+     *
+     * @param neoQuantity the quantity of NEO desired
+     */
+    private static int convertToBneoInternal(int neoQuantity) {
+        Hash160 bneoHash = getBneoScriptHash();
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        NeoToken neoContract = new NeoToken();
+
+        int bneoQuantity = neoQuantity * getBneoMultiplier();
+
+        assert neoQuantity <= getNeoReserves();
+
+        // Swap NEO for bNEO
+        int beforeBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
+        boolean transferSuccess = neoContract.transfer(cneoHash, bneoHash, neoQuantity, null);
+        assert transferSuccess;
+
+        int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
+        int actualBneoQuantity = afterBalance - beforeBalance;
+        assert bneoQuantity == actualBneoQuantity;
+
+        return bneoQuantity;
+    }
+
+    /**
      * 1. Burn the cNEO offered by the user
      * 2. Send the corresponding quantity of bNEO back to the requesting user
      * 
@@ -789,23 +795,17 @@ public class CompoundingNeo {
         mintCneoFromBneo(bneoQuantity, account);
     }
 
-    /**
-     * Compute the (bNEO + NEO):cNEO ratio in this contract
-     *
-     * @return the ratio (bNEO + NEO reserves) / (cNEO supply), multiplied by {@link #FLOAT_MULTIPLIER}
-     */
-    @Safe
-    public static int getReserveRatio() {
-        int totalReserves = getTotalReserves();
-        int cneoSupply = totalSupply();
+    private static void setLastCompounded(int lastCompounded) {
+        validatePositiveNumber(lastCompounded, "lastCompounded");
 
-        // Special case when cNEO supply is 0
-        if (cneoSupply == 0) {
-            return FLOAT_MULTIPLIER;
-        }
+        Storage.put(ctx, LAST_COMPOUNDED_KEY, lastCompounded);
+    }
 
-        // Otherwise, this is a valid number
-        return (FLOAT_MULTIPLIER * totalReserves) / cneoSupply;
+    private static boolean isBurgerAgent(Hash160 burgerAgentHash) {
+        validateHash160(burgerAgentHash, "burgerAgentHash");
+
+        final Boolean storageVal = BNEO_AGENT_MAP.getBoolean(burgerAgentHash.toByteArray());
+        return storageVal == null ? false : storageVal;
     }
 
     /**
