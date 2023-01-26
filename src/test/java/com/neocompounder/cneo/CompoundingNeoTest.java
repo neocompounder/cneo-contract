@@ -89,6 +89,7 @@ public class CompoundingNeoTest {
     private static final String OTHER = "NdbtgSku2qLuwsBBzLx3FLtmmMdm32Ktor";
 
     private static final String ABORT_MESSAGE = "The vm exited due to the following exception: ABORT is executed.";
+    private static final String ASSERT_MESSAGE = "The vm exited due to the following exception: ASSERT is executed with false result.";
     private static final String COMPOUND_PERIOD_POSITIVE_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'compoundPeriod'=-1 must be positive";
     private static final String FEE_PERCENT_100_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'feePercent' must be <= 100";
     private static final String FEE_PERCENT_POSITIVE_MESSAGE = "The vm exited due to the following exception: An unhandled exception was thrown. The parameter 'feePercent'=-1 must be positive";
@@ -395,7 +396,7 @@ public class CompoundingNeoTest {
             setFeePercent(owner, new BigInteger("101"));
         });
         actualMessage = exception.getMessage();
-        assertEquals(FEE_PERCENT_100_MESSAGE, actualMessage);
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         exception = assertThrows(TransactionConfigurationException.class, () -> {
             setFeePercent(owner, new BigInteger("-1"));
@@ -420,6 +421,12 @@ public class CompoundingNeoTest {
         });
         String actualMessage = exception.getMessage();
         assertEquals(ABORT_MESSAGE, actualMessage);
+
+        exception = assertThrows(TransactionConfigurationException.class, () -> {
+            setGasReward(owner, new BigInteger("100000001"));
+        });
+        actualMessage = exception.getMessage();
+        assertEquals(ASSERT_MESSAGE, actualMessage);
 
         exception = assertThrows(TransactionConfigurationException.class, () -> {
             setGasReward(owner, new BigInteger("-1"));
@@ -589,10 +596,10 @@ public class CompoundingNeoTest {
         String actualMessage = exception.getMessage();
         assertEquals(ABORT_MESSAGE, actualMessage);
 
-        setMaxSupply(owner, new BigInteger("9000000000"));
+        setMaxSupply(owner, new BigInteger("99890109890"));
 
         result = cNeo.callInvokeFunction(GET_MAX_SUPPLY);
-        assertEquals(new BigInteger("9000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
         assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());

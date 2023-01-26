@@ -61,6 +61,10 @@ public class CompoundingNeo {
     private static final int INITIAL_FEE_PERCENT = 5;
     // 1 million cNEO
     private static final int INITIAL_MAX_SUPPLY = StringLiteralHelper.stringToInt("100000000000000");
+    // 1 GAS
+    private static final int INITIAL_MAX_GAS_REWARD = 100000000;
+    // 10%
+    private static final int INITIAL_MAX_FEE_PERCENT = 10;
     private static final int DECIMALS = 8;
     private static final String SYMBOL = "cNEO";
     private static final String BALANCE_OF = "balanceOf";
@@ -81,6 +85,9 @@ public class CompoundingNeo {
 
     private static StorageMap BALANCE_MAP = new StorageMap(Storage.getStorageContext(), new byte[]{0x0c});
     private static StorageMap BNEO_AGENT_MAP = new StorageMap(Storage.getStorageContext(), new byte[]{0x0d});
+
+    private static final byte[] MAX_GAS_REWARD_KEY = new byte[]{0x0e};
+    private static final byte[] MAX_FEE_PERCENT_KEY = new byte[]{0x0f};
 
     // Hex strings
     private static final ByteString COMPOUND = StringLiteralHelper.hexToBytes("636f6d706f756e64");
@@ -258,10 +265,7 @@ public class CompoundingNeo {
     public static void setFeePercent(int feePercent) throws Exception {
         validateOwner("setFeePercent");
         validatePositiveNumber(feePercent, "feePercent");
-
-        if (feePercent > 100) {
-            throw new Exception("The parameter 'feePercent' must be <= 100");
-        }
+        assert feePercent <= getMaxFeePercent();
 
         Storage.put(ctx, FEE_PERCENT_KEY, feePercent);
     }
@@ -272,9 +276,24 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_FEE_PERCENT : storageVal;
     }
 
+    public static void setMaxFeePercent(int maxFeePercent) throws Exception {
+        validateOwner("setMaxFeePercent");
+        validatePositiveNumber(maxFeePercent, "maxFeePercent");
+        assert maxFeePercent < 100;
+
+        Storage.put(ctx, MAX_FEE_PERCENT_KEY, maxFeePercent);
+    }
+
+    @Safe
+    public static int getMaxFeePercent() {
+        final Integer storageVal = Storage.getInt(rtx, MAX_FEE_PERCENT_KEY);
+        return storageVal == null ? INITIAL_MAX_FEE_PERCENT : storageVal;
+    }
+
     public static void setMaxSupply(int maxSupply) throws Exception {
         validateOwner("setMaxSupply");
         validatePositiveNumber(maxSupply, "maxSupply");
+        assert maxSupply >= totalSupply();
 
         Storage.put(ctx, MAX_SUPPLY_KEY, maxSupply);
     }
@@ -288,6 +307,7 @@ public class CompoundingNeo {
     public static void setGasReward(int gasReward) throws Exception {
         validateOwner("setGasReward");
         validatePositiveNumber(gasReward, "gasReward");
+        assert gasReward <= getMaxGasReward();
 
         Storage.put(ctx, GAS_REWARD_KEY, gasReward);
     }
@@ -295,6 +315,19 @@ public class CompoundingNeo {
     @Safe
     public static int getGasReward() {
         return Storage.getIntOrZero(rtx, GAS_REWARD_KEY);
+    }
+
+    public static void setMaxGasReward(int maxGasReward) throws Exception {
+        validateOwner("setMaxGasReward");
+        validatePositiveNumber(maxGasReward, "maxGasReward");
+
+        Storage.put(ctx, MAX_GAS_REWARD_KEY, maxGasReward);
+    }
+
+    @Safe
+    public static int getMaxGasReward() {
+        final Integer storageVal = Storage.getInt(rtx, MAX_GAS_REWARD_KEY);
+        return storageVal == null ? INITIAL_MAX_GAS_REWARD : storageVal;
     }
 
     public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {
@@ -395,6 +428,7 @@ public class CompoundingNeo {
      */
     public static void withdrawGas(Hash160 account, int withdrawQuantity) throws Exception {
         validateOwner("withdrawGas");
+        validateAccount(account, "withdrawGas");
 
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         GasToken gasContract = new GasToken();
