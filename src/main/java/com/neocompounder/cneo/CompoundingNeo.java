@@ -56,7 +56,7 @@ public class CompoundingNeo {
 
     private static final int INITIAL_SUPPLY = 0;
     // 1 week in milliseconds
-    private static final int INITIAL_COMPOUND_PERIOD = StringLiteralHelper.stringToInt("604800000");
+    private static final int INITIAL_COMPOUND_PERIOD = 604800000;
     private static final int INITIAL_FEE_PERCENT = 5;
     // 1 million cNEO
     private static final int INITIAL_MAX_SUPPLY = StringLiteralHelper.stringToInt("100000000000000");
@@ -89,7 +89,7 @@ public class CompoundingNeo {
     private static final byte[] MAX_FEE_PERCENT_KEY = new byte[]{0x0f};
 
     // Hex strings
-    private static final ByteString COMPOUND = StringLiteralHelper.hexToBytes("636f6d706f756e64");
+    private static final ByteString COMPOUND = new ByteString("compound");
     private static final ByteString SYSTEM_CONTRACT_CALL = StringLiteralHelper.hexToBytes("627d5b52");
 
     // Events
@@ -150,14 +150,6 @@ public class CompoundingNeo {
 
     @DisplayName("SetBurgerAgentScriptHash")
     private static Event1Arg<Hash160> onSetBurgerAgentScriptHash;
-
-    /**
-     * This event is intended to be fired before aborting the VM. The first argument should be a message and the
-     * second argument should be the method name whithin which it has been fired.
-     */
-    @DisplayName("Error")
-    private static Event2Args<String, String> onError;
-
     
     // Lifecycle Methods
     @OnDeployment
@@ -645,7 +637,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer from mint but not bNEO or GAS", "onNEP17Payment");
+                abort("NEP17Transfer from mint but not bNEO or GAS", "onNEP17Payment");
             }
         }
 
@@ -656,7 +648,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer from self not NEO", "onNEP17Payment");
+                abort("NEP17Transfer from self not NEO", "onNEP17Payment");
             }
         }
 
@@ -667,7 +659,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer from NeoBurger but not GAS", "onNEP17Payment");
+                abort("NEP17Transfer from NeoBurger but not GAS", "onNEP17Payment");
             }
         }
 
@@ -678,7 +670,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer from GAS-bNEO swap pair but not bNEO", "onNEP17Payment");
+                abort("NEP17Transfer from GAS-bNEO swap pair but not bNEO", "onNEP17Payment");
             }
         }
 
@@ -689,7 +681,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer from bNEO agent but not NEO", "onNEP17Payment");
+                abort("NEP17Transfer from bNEO agent but not NEO", "onNEP17Payment");
             }
         }
 
@@ -704,7 +696,7 @@ public class CompoundingNeo {
                 return;
             }
             else {
-                fireErrorAndAbort("NEP17Transfer with non-null payload but unknown action", "onNEP17Payment");
+                abort("NEP17Transfer with non-null payload but unknown action", "onNEP17Payment");
             }
         }
 
@@ -723,7 +715,7 @@ public class CompoundingNeo {
                 handleBneoWithdraw(from, amount);
             }
             else {
-                fireErrorAndAbort("NEP17Transfer with null params must be one of NEO, bNEO, or cNEO", "onNEP17Payment");
+                abort("NEP17Transfer with null params must be one of NEO, bNEO, or cNEO", "onNEP17Payment");
             }
         }
     }
@@ -933,8 +925,8 @@ public class CompoundingNeo {
         }
     }
 
-    private static void fireErrorAndAbort(String msg, String method) {
-        onError.fire(msg, method);
+    private static void abort(String msg, String method) {
+        // Keeping this method signature in case notifications are enabled for aborts later.
         Helper.abort();
     }
 
@@ -1023,13 +1015,13 @@ public class CompoundingNeo {
 
     private static void validateOwner(String method) {
         if (!Runtime.checkWitness(getOwner())) {
-            fireErrorAndAbort("Not authorized", method);
+            abort("Not authorized", method);
         }
     }
 
     private static void validateAccount(Hash160 account, String method) {
         if (!Runtime.checkWitness(account)) {
-            fireErrorAndAbort("Invalid witness", method);
+            abort("Invalid witness", method);
         }
     }
 }
