@@ -87,6 +87,7 @@ public class CompoundingNeo {
 
     private static final byte[] MAX_GAS_REWARD_KEY = new byte[]{0x0e};
     private static final byte[] MAX_FEE_PERCENT_KEY = new byte[]{0x0f};
+    private static final byte[] GAS_RESERVES_KEY = new byte[]{0x10};
 
     // Hex strings
     private static final ByteString PUSHDATA1 = new ByteString(new byte[]{0x0c});
@@ -422,6 +423,11 @@ public class CompoundingNeo {
         return getBneoReserves() + (getNeoReserves() * getBneoMultiplier());
     }
 
+    @Safe
+    public static int getGasReserves() {
+        return Storage.getIntOrZero(rtx, GAS_RESERVES_KEY);
+    }
+
     /**
      * Compute the (bNEO + NEO):cNEO ratio in this contract
      *
@@ -479,14 +485,9 @@ public class CompoundingNeo {
         validateOwner("withdrawGas");
         validateAccount(account, "withdrawGas");
 
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        GasToken gasContract = new GasToken();
-        int curBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
-        int remainingBalance = curBalance - withdrawQuantity;
+        assert withdrawQuantity <= getGasReserves();
 
-        validatePositiveNumber(remainingBalance, "remainingBalance");
-
-        boolean transferSuccess = gasContract.transfer(cneoHash, account, withdrawQuantity, null);
+        boolean transferSuccess = transferGas(account, withdrawQuantity);
         assert transferSuccess;
         onWithdrawGas.fire(account, withdrawQuantity);
     }
@@ -507,7 +508,9 @@ public class CompoundingNeo {
         NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
 
-        int beforeBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
+        // GAS reserves >= GAS balance always and includes GAS accrued
+        // from NEO transfers in between calls of compound()
+        int beforeBalance = getGasReserves();
 
         // Send 0 NEO to self to claim GAS
         boolean transferSuccess = neoContract.transfer(cneoHash, cneoHash, 0, null);
@@ -523,8 +526,11 @@ public class CompoundingNeo {
         int gasToSwap = gasQuantity - treasuryCut;
         int bneoQuantity = gasToSwap > 0 ? swapGasForBneo(gasToSwap) : 0;
 
+        // GAS accounting
+        addToGasReserves(treasuryCut);
+
         // Reward the invoker for a job well done
-        transferSuccess = gasContract.transfer(cneoHash, account, getGasReward(), null);
+        transferSuccess = transferGas(account, getGasReward());
         assert transferSuccess;
 
         onCompound.fire(account, gasQuantity, bneoQuantity, treasuryCut);
@@ -540,13 +546,9 @@ public class CompoundingNeo {
         validateOwner("compoundReserves");
         validatePositiveNumber(gasQuantity, "gasQuantity");
 
-        GasToken gasContract = new GasToken();
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        int gasBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
-        int remainingBalance = gasBalance - gasQuantity;
+        assert gasQuantity <= getGasReserves();
 
-        validatePositiveNumber(remainingBalance, "remainingBalance");
-
+        deductFromGasReserves(gasQuantity);
         int bneoQuantity = gasQuantity > 0 ? swapGasForBneo(gasQuantity) : 0;
         onCompoundReserves.fire(gasQuantity, bneoQuantity);
     }
@@ -591,7 +593,7 @@ public class CompoundingNeo {
         assert gasQuantity <= gasBalance;
 
         int beforeBalance = (int) Contract.call(neoContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
-        boolean transferSuccess = gasContract.transfer(cneoHash, bneoHash, gasQuantity, null);
+        boolean transferSuccess = transferGas(bneoHash, gasQuantity);
         assert transferSuccess;
 
         int afterBalance = (int) Contract.call(neoContract.getHash(), BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
@@ -679,6 +681,7 @@ public class CompoundingNeo {
 
             // 5a) GAS top-up for continued operations
             if (tokenHash.equals(gasContract.getHash()) && ACTION_TOP_UP_GAS.equals(action)) {
+                addToGasReserves(amount);
                 onTopUpGas.fire(from, amount);
                 return;
             }
@@ -806,6 +809,15 @@ public class CompoundingNeo {
 
         final Boolean storageVal = BNEO_AGENT_MAP.getBoolean(burgerAgentHash.toByteArray());
         return storageVal == null ? false : storageVal;
+    }
+
+    // Helper to ensure that we update gas reserves correctly
+    private static boolean transferGas(Hash160 to, int quantity) {
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        GasToken gasContract = new GasToken();
+
+        deductFromGasReserves(quantity);
+        return gasContract.transfer(cneoHash, to, quantity, null);
     }
 
     /**
@@ -968,6 +980,14 @@ public class CompoundingNeo {
 
     private static void deductFromNeoReserves(int value) {
         addToNeoReserves(-value);
+    }
+
+    private static void addToGasReserves(int value) {
+        Storage.put(ctx, GAS_RESERVES_KEY, getGasReserves() + value);
+    }
+
+    private static void deductFromGasReserves(int value) {
+        addToGasReserves(-value);
     }
 
     private static int getBalance(Hash160 key) {

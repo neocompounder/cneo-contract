@@ -333,7 +333,6 @@ public class CompoundingNeoTest {
         result = cNeo.callInvokeFunction(GET_OWNER);
         assertEquals(result.getInvocationResult().getStack().get(0).getAddress(), owner.getAddress());
     }
-    
 
     @Order(5)
     @Test
@@ -572,7 +571,7 @@ public class CompoundingNeoTest {
     @Test
     public void invokeWithdrawGas() throws Throwable {
         NeoInvokeFunction result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        //assertEquals(new BigInteger("9971432720"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10090000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
         BigInteger beforeGas = result.getInvocationResult().getStack().get(0).getInteger();
@@ -592,7 +591,7 @@ public class CompoundingNeoTest {
         assertTrue(afterGas.compareTo(beforeGas) > 0);
 
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        //assertEquals(new BigInteger("9871432720"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("9990000000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
     @Order(14)
@@ -824,7 +823,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("51005"), stackItems.get(2).getInteger());
         
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("10990049667"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10990049734"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
     @Order(19)
