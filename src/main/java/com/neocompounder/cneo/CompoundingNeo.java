@@ -121,6 +121,34 @@ public class CompoundingNeo {
     @DisplayName("ConvertToBneo")
     private static Event1Arg<Integer> onConvertToBneo;
 
+    // State Changes
+    @DisplayName("SetFeePercent")
+    private static Event1Arg<Integer> onSetFeePercent;
+
+    @DisplayName("SetGasReward")
+    private static Event1Arg<Integer> onSetGasReward;
+
+    @DisplayName("SetMaxSupply")
+    private static Event1Arg<Integer> onSetMaxSupply;
+
+    @DisplayName("SetCompoundPeriod")
+    private static Event1Arg<Integer> onSetCompoundPeriod;
+
+    @DisplayName("SetOwner")
+    private static Event1Arg<Hash160> onSetOwner;
+
+    @DisplayName("SetSwapRouterScriptHash")
+    private static Event1Arg<Hash160> onSetSwapRouterScriptHash;
+
+    @DisplayName("SetSwapPairScriptHash")
+    private static Event1Arg<Hash160> onSetSwapPairScriptHash;
+
+    @DisplayName("SetBneoScriptHash")
+    private static Event1Arg<Hash160> onSetBneoScriptHash;
+
+    @DisplayName("SetBurgerAgentScriptHash")
+    private static Event1Arg<Hash160> onSetBurgerAgentScriptHash;
+
     /**
      * This event is intended to be fired before aborting the VM. The first argument should be a message and the
      * second argument should be the method name whithin which it has been fired.
@@ -192,6 +220,7 @@ public class CompoundingNeo {
         validateHash160(owner, "owner");
 
         Storage.put(ctx, OWNER_KEY, owner);
+        onSetOwner.fire(owner);
     }
 
     @Safe
@@ -204,6 +233,7 @@ public class CompoundingNeo {
         validateContract(bneoHash, "bneoHash");
 
         Storage.put(ctx, BNEO_HASH_KEY, bneoHash);
+        onSetBneoScriptHash.fire(bneoHash);
     }
 
     @Safe
@@ -217,6 +247,7 @@ public class CompoundingNeo {
         validateContract(swapPairHash, "swapPairHash");
 
         Storage.put(ctx, SWAP_PAIR_HASH_KEY, swapPairHash);
+        onSetSwapPairScriptHash.fire(swapPairHash);
     }
 
     @Safe
@@ -230,6 +261,7 @@ public class CompoundingNeo {
         validateContract(swapRouterHash, "swapRouterHash");
 
         Storage.put(ctx, SWAP_ROUTER_HASH_KEY, swapRouterHash);
+        onSetSwapRouterScriptHash.fire(swapRouterHash);
     }
 
     @Safe
@@ -254,6 +286,7 @@ public class CompoundingNeo {
         validatePositiveNumber(compoundPeriod, "compoundPeriod");
 
         Storage.put(ctx, COMPOUND_PERIOD_KEY, compoundPeriod);
+        onSetCompoundPeriod.fire(compoundPeriod);
     }
 
     @Safe
@@ -268,6 +301,7 @@ public class CompoundingNeo {
         assert feePercent <= getMaxFeePercent();
 
         Storage.put(ctx, FEE_PERCENT_KEY, feePercent);
+        onSetFeePercent.fire(feePercent);
     }
 
     @Safe
@@ -296,6 +330,7 @@ public class CompoundingNeo {
         assert maxSupply >= totalSupply();
 
         Storage.put(ctx, MAX_SUPPLY_KEY, maxSupply);
+        onSetMaxSupply.fire(maxSupply);
     }
 
     @Safe
@@ -310,6 +345,7 @@ public class CompoundingNeo {
         assert gasReward <= getMaxGasReward();
 
         Storage.put(ctx, GAS_REWARD_KEY, gasReward);
+        onSetGasReward.fire(gasReward);
     }
 
     @Safe
@@ -335,6 +371,7 @@ public class CompoundingNeo {
         validateContract(burgerAgentHash, "burgerAgentHash");
 
         BNEO_AGENT_MAP.put(burgerAgentHash.toByteArray(), 1);
+        onSetBurgerAgentScriptHash.fire(burgerAgentHash);
     }
 
     public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) throws Exception {

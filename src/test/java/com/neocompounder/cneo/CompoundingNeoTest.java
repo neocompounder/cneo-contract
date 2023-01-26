@@ -328,7 +328,14 @@ public class CompoundingNeoTest {
         result = cNeo.callInvokeFunction(GET_OWNER);
         assertEquals(result.getInvocationResult().getStack().get(0).getAddress(), other.getAddress());
 
-        setOwner(owner, other);
+        Hash256 txHash = setOwner(owner, other);
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetOwner", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(owner.getAddress(), stackItems.get(0).getAddress());
 
         result = cNeo.callInvokeFunction(GET_OWNER);
         assertEquals(result.getInvocationResult().getStack().get(0).getAddress(), owner.getAddress());
@@ -374,7 +381,14 @@ public class CompoundingNeoTest {
         actualMessage = exception.getMessage();
         assertEquals(COMPOUND_PERIOD_POSITIVE_MESSAGE, actualMessage);
 
-        setCompoundPeriod(owner, new BigInteger("3600000"));
+        Hash256 txHash = setCompoundPeriod(owner, new BigInteger("3600000"));
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetCompoundPeriod", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("3600000"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_COMPOUND_PERIOD);
         assertEquals(new BigInteger("3600000"), result.getInvocationResult().getStack().get(0).getInteger());
@@ -404,7 +418,14 @@ public class CompoundingNeoTest {
         actualMessage = exception.getMessage();
         assertEquals(FEE_PERCENT_POSITIVE_MESSAGE, actualMessage);
 
-        setFeePercent(owner, new BigInteger("10"));
+        Hash256 txHash = setFeePercent(owner, new BigInteger("10"));
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetFeePercent", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("10"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_FEE_PERCENT);
         assertEquals(new BigInteger("10"), result.getInvocationResult().getStack().get(0).getInteger());
@@ -434,7 +455,14 @@ public class CompoundingNeoTest {
         actualMessage = exception.getMessage();
         assertEquals(GAS_REWARD_POSITIVE_MESSAGE, actualMessage);
 
-        setGasReward(owner, new BigInteger("10000000"));
+        Hash256 txHash = setGasReward(owner, new BigInteger("10000000"));
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetGasReward", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("10000000"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_GAS_REWARD);
         assertEquals(new BigInteger("10000000"), result.getInvocationResult().getStack().get(0).getInteger());
@@ -596,7 +624,14 @@ public class CompoundingNeoTest {
         String actualMessage = exception.getMessage();
         assertEquals(ABORT_MESSAGE, actualMessage);
 
-        setMaxSupply(owner, new BigInteger("99890109890"));
+        txHash = setMaxSupply(owner, new BigInteger("99890109890"));
+
+        execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetMaxSupply", n0.getEventName());
+        stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("99890109890"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_MAX_SUPPLY);
         assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
@@ -909,19 +944,19 @@ public class CompoundingNeoTest {
         return invoke(token, caller, TRANSFER, params);
     }
 
-    private static void setBneoScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        invoke(cNeo, caller, SET_BNEO_SCRIPT_HASH, hash160(contractHash));
+    private static Hash256 setBneoScriptHash(Account caller, Hash160 contractHash) throws Throwable {
+        return invoke(cNeo, caller, SET_BNEO_SCRIPT_HASH, hash160(contractHash));
     }
 
-    private static void setSwapPairScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        invoke(cNeo, caller, SET_SWAP_PAIR_SCRIPT_HASH, hash160(contractHash));
+    private static Hash256 setSwapPairScriptHash(Account caller, Hash160 contractHash) throws Throwable {
+        return invoke(cNeo, caller, SET_SWAP_PAIR_SCRIPT_HASH, hash160(contractHash));
     }
 
-    private static void setSwapRouterScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        invoke(cNeo, caller, SET_SWAP_ROUTER_SCRIPT_HASH, hash160(contractHash));
+    private static Hash256 setSwapRouterScriptHash(Account caller, Hash160 contractHash) throws Throwable {
+        return invoke(cNeo, caller, SET_SWAP_ROUTER_SCRIPT_HASH, hash160(contractHash));
     }
 
-    private static void setOwner(Account newOwner, Account oldOwner) throws Throwable {
+    private static Hash256 setOwner(Account newOwner, Account oldOwner) throws Throwable {
         Transaction tx = cNeo.invokeFunction(SET_OWNER, hash160(newOwner.getScriptHash()))
                 .signers(AccountSigner.calledByEntry(oldOwner), AccountSigner.calledByEntry(newOwner))
                 .getUnsignedTransaction();
@@ -930,26 +965,27 @@ public class CompoundingNeoTest {
                 .addWitness(Witness.create(tx.getHashData(), newOwner.getECKeyPair()))
                 .send().getSendRawTransaction().getHash();
         Await.waitUntilTransactionIsExecuted(txHash, neow3j);
+        return txHash;
     }
 
-    private static void setCompoundPeriod(Account caller, BigInteger compoundPeriod) throws Throwable {
-        invoke(cNeo, caller, SET_COMPOUND_PERIOD, integer(compoundPeriod));
+    private static Hash256 setCompoundPeriod(Account caller, BigInteger compoundPeriod) throws Throwable {
+        return invoke(cNeo, caller, SET_COMPOUND_PERIOD, integer(compoundPeriod));
     }
 
-    private static void setFeePercent(Account caller, BigInteger feePercent) throws Throwable {
-        invoke(cNeo, caller, SET_FEE_PERCENT, integer(feePercent));
+    private static Hash256 setFeePercent(Account caller, BigInteger feePercent) throws Throwable {
+        return invoke(cNeo, caller, SET_FEE_PERCENT, integer(feePercent));
     }
 
-    private static void setMaxSupply(Account caller, BigInteger maxSupply) throws Throwable {
-        invoke(cNeo, caller, SET_MAX_SUPPLY, integer(maxSupply));
+    private static Hash256 setMaxSupply(Account caller, BigInteger maxSupply) throws Throwable {
+        return invoke(cNeo, caller, SET_MAX_SUPPLY, integer(maxSupply));
     }
 
-    private static void setGasReward(Account caller, BigInteger gasReward) throws Throwable {
-        invoke(cNeo, caller, SET_GAS_REWARD, integer(gasReward));
+    private static Hash256 setGasReward(Account caller, BigInteger gasReward) throws Throwable {
+        return invoke(cNeo, caller, SET_GAS_REWARD, integer(gasReward));
     }
 
-    private static void setBurgerAgentScriptHash(Account caller, SmartContract contract, Hash160 burgerAgent) throws Throwable {
-        invoke(contract, caller, SET_BURGER_AGENT_SCRIPT_HASH, hash160(burgerAgent));
+    private static Hash256 setBurgerAgentScriptHash(Account caller, SmartContract contract, Hash160 burgerAgent) throws Throwable {
+        return invoke(contract, caller, SET_BURGER_AGENT_SCRIPT_HASH, hash160(burgerAgent));
     }
 
     private static class InvokeVerifyResult {
