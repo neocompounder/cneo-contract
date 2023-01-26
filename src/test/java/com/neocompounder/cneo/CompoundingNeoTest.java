@@ -651,7 +651,7 @@ public class CompoundingNeoTest {
 
     @Order(15)
     @Test
-    public void invokeCompoundContribution() throws Throwable {
+    public void invokeCompoundReserves() throws Throwable {
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
                 integer(new BigInteger("1000000000")), any(null));
 
@@ -1001,8 +1001,8 @@ public class CompoundingNeoTest {
         return new InvokeVerifyResult(tx, txHash);
     }
 
-    private static Hash256 vote(Account caller, ECPublicKey candidate) throws Throwable {
-        return invoke(cNeo, caller, VOTE, publicKey(candidate));
+    private static InvokeVerifyResult vote(Account caller, ECPublicKey candidate) throws Throwable {
+        return invokeVerify(cNeo, caller, VOTE, publicKey(candidate));
     }
 
     private static InvokeVerifyResult compound(Account caller) throws Throwable {

@@ -89,8 +89,12 @@ public class CompoundingNeo {
     private static final byte[] MAX_FEE_PERCENT_KEY = new byte[]{0x0f};
 
     // Hex strings
+    private static final ByteString PUSHDATA1 = new ByteString(new byte[]{0x0c});
+    private static final ByteString PUSH1_PACK_PUSH15_PUSHDATA1 = StringLiteralHelper.hexToBytes("11c01f0c");
     private static final ByteString COMPOUND = new ByteString("compound");
-    private static final ByteString SYSTEM_CONTRACT_CALL = StringLiteralHelper.hexToBytes("627d5b52");
+    private static final ByteString COMPOUND_RESERVES = new ByteString("compoundReserves");
+    private static final ByteString VOTE = new ByteString("vote");
+    private static final ByteString SYSCALL_CONTRACT_CALL = StringLiteralHelper.hexToBytes("41627d5b52");
 
     // Events
     @DisplayName("Mint")
@@ -184,31 +188,34 @@ public class CompoundingNeo {
     
     @OnVerification
     public static boolean verify() {
-        // The owner is always verified
-        if (Runtime.checkWitness(getOwner())) {
-            return true;
-        }
-
         Transaction tx = (Transaction) Runtime.getScriptContainer();
         ByteString script = tx.script;
         ByteString cneo = Runtime.getExecutingScriptHash().toByteString();
 
-        // Otherwise, only allow compound() to be called with verification
-        return  script.length() == 62
-                && script.range(0, 1).equals(new ByteString(new byte[]{0x0c})) // PUSHDATA1
-                && script.range(1, 1).equals(new ByteString(20)) // 20
-                // script.range(2, 20) is the invoker's address, whose value we don't care much about
-                && script.range(22, 1).equals(new ByteString(new byte[]{0x11})) // PUSH1
-                && script.range(23, 1).equals(new ByteString(new byte[]{(byte) 0xc0})) // PACK
-                && script.range(24, 1).equals(new ByteString(new byte[]{0x1f})) // PUSH15
-                && script.range(25, 1).equals(new ByteString(new byte[]{0x0c})) // PUSHDATA1
-                && script.range(27, 8).equals(COMPOUND) // compound
-                && script.range(37, 20).equals(cneo) // cNEO script hash
-                && script.range(57, 1).equals(new ByteString(new byte[]{0x41})) // SYSCALL
-                && script.range(58, 4).equals(SYSTEM_CONTRACT_CALL) // System.Contract.Call
-                // Allowing the sender to be the contract is dangerous because
-                // an attacker could drain the contract's GAS through repeated FAULT transactions
-                && !tx.sender.toByteString().equals(cneo); // Sender
+        boolean isCompound = script.length() == 62
+                          && script.range(0, 1).equals(PUSHDATA1)
+                          // script.range(2, 20) is the invoker's address, whose value we don't care much about
+                          && script.range(22, 4).equals(PUSH1_PACK_PUSH15_PUSHDATA1)
+                          && script.range(27, 8).equals(COMPOUND) // compound
+                          && script.range(37, 20).equals(cneo) // cNEO script hash
+                          && script.range(57, 5).equals(SYSCALL_CONTRACT_CALL) // System.Contract.Call
+                          // Allowing the sender to be the contract is dangerous because
+                          // an attacker could drain the contract's GAS through repeated FAULT transactions
+                          && !tx.sender.toByteString().equals(cneo); // Sender
+
+        // Allow compound() to be called with verification from anyone
+        if (isCompound) {
+            return true;
+        // Allow compoundReserves() and vote() to be called with verification from the owner
+        } else if (Runtime.checkWitness(getOwner())) {
+            // This script can start with either PUSHINT32 or PUSHINT64
+            boolean isCompoundReserves = (script.length() == 57 && script.range(14, 16).equals(COMPOUND_RESERVES))
+                                      || (script.length() == 53 && script.range(10, 16).equals(COMPOUND_RESERVES));
+            boolean isVote = script.length() == 71
+                          && script.range(40, 4).equals(VOTE);
+            return isCompoundReserves || isVote;
+        }
+        return false;
     }
 
     // Contract Methods
