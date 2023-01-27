@@ -9,6 +9,7 @@ import io.neow3j.protocol.core.response.NeoApplicationLog;
 import io.neow3j.protocol.core.response.NeoInvokeFunction;
 import io.neow3j.protocol.core.response.Notification;
 import io.neow3j.protocol.core.stackitem.StackItem;
+import io.neow3j.script.ScriptReader;
 import io.neow3j.test.ContractTest;
 import io.neow3j.test.ContractTestExtension;
 import io.neow3j.test.DeployConfig;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import com.neocompounder.cneo.mock.BNeoToken;
 import com.neocompounder.cneo.mock.BurgerAgent;
-import com.neocompounder.cneo.mock.FlamingoSwapRouter;
+import com.neocompounder.cneo.mock.FlamingoSwapPairAndRouter;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -51,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@ContractTest(blockTime = 1, contracts = { CompoundingNeo.class, BNeoToken.class, BurgerAgent.class, FlamingoSwapRouter.class }, configFile="default.neo-express")
+@ContractTest(blockTime = 1, contracts = { CompoundingNeo.class, BNeoToken.class, BurgerAgent.class, FlamingoSwapPairAndRouter.class }, configFile="default.neo-express")
 public class CompoundingNeoTest {
 
     private static final String SET_OWNER = "setOwner";
@@ -84,6 +85,9 @@ public class CompoundingNeoTest {
     private static final String WITHDRAW_GAS = "withdrawGas";
     private static final String CONVERT_TO_NEO = "convertToNeo";
     private static final String CONVERT_TO_BNEO = "convertToBneo";
+    private static final String SET_TOKEN0 = "setToken0";
+    private static final String SET_TOKEN1 = "setToken1";
+    private static final String SET_RESERVES = "setReserves";
 
     private static final String OWNER = "NM7Aky765FG8NhhwtxjXRx7jEL1cnw7PBP";
     private static final String OTHER = "NdbtgSku2qLuwsBBzLx3FLtmmMdm32Ktor";
@@ -111,7 +115,7 @@ public class CompoundingNeoTest {
         cNeo = ext.getDeployedContract(CompoundingNeo.class);
         bNeo = ext.getDeployedContract(BNeoToken.class);
         burgerAgent = ext.getDeployedContract(BurgerAgent.class);
-        swapRouter = ext.getDeployedContract(FlamingoSwapRouter.class);
+        swapRouter = ext.getDeployedContract(FlamingoSwapPairAndRouter.class);
         neoToken = new NeoToken(neow3j);
         gasToken = new GasToken(neow3j);
         transferFromGenesis(neoToken, hash160(genesis.getMultiSigAccount().getScriptHash()),
@@ -148,7 +152,7 @@ public class CompoundingNeoTest {
         return config;
     }
 
-    @DeployConfig(FlamingoSwapRouter.class)
+    @DeployConfig(FlamingoSwapPairAndRouter.class)
     public static DeployConfiguration configureRouter() throws Exception {
         DeployConfiguration config = new DeployConfiguration();
         owner = ext.getAccount(OWNER);
@@ -159,6 +163,8 @@ public class CompoundingNeoTest {
     @Order(0)
     @Test
     public void invokeMintWithBneo() throws Throwable {
+        setToken0(owner, gasToken.getScriptHash());
+        setToken1(owner, bNeo.getScriptHash());
         setBneoScriptHash(owner, bNeo.getScriptHash());
         setSwapRouterScriptHash(owner, swapRouter.getScriptHash());
         setSwapPairScriptHash(owner, swapRouter.getScriptHash());
@@ -485,6 +491,7 @@ public class CompoundingNeoTest {
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(other.getScriptHash())));
         BigInteger beforeGas = result.getInvocationResult().getStack().get(0).getInteger();
 
+        setReserves(owner, 1, 1);
         InvokeVerifyResult verifyResult = compound(other);
         Hash256 txHash = verifyResult.txHash;
 
@@ -669,6 +676,7 @@ public class CompoundingNeoTest {
         transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
                 integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
 
+        setReserves(owner, 10, 1);
         InvokeVerifyResult verifyResult = compoundReserves(owner, new BigInteger("10000000000"));
         Hash256 txHash = verifyResult.txHash;
 
@@ -810,6 +818,7 @@ public class CompoundingNeoTest {
 
         ext.fastForward(3600, 100);
 
+        setReserves(owner, 1, 0);
         // No GAS in bNEO contract, so we only have GAS claim from our NEO that is sent to the swap router
         InvokeVerifyResult verifyResult = compound(owner);
         Hash256 txHash = verifyResult.txHash;
@@ -820,10 +829,10 @@ public class CompoundingNeoTest {
         assertEquals(gasToken.getScriptHash(), n1.getContract());
         List<StackItem> stackItems = n1.getState().getList();
         assertEquals(cNeo.getScriptHash(), new Hash160(ArrayUtils.reverseArray(stackItems.get(1).getByteArray())));
-        assertEquals(new BigInteger("51005"), stackItems.get(2).getInteger());
+        assertEquals(new BigInteger("51510"), stackItems.get(2).getInteger());
         
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("10990049734"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10990050189"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
     @Order(19)
@@ -1022,5 +1031,17 @@ public class CompoundingNeoTest {
 
     private static Hash256 withdrawGas(Account caller, BigInteger withdrawQuantity) throws Throwable {
         return invoke(cNeo, caller, WITHDRAW_GAS, hash160(caller.getScriptHash()), integer(withdrawQuantity));
+    }
+
+    private static Hash256 setToken0(Account caller, Hash160 token0) throws Throwable {
+        return invoke(swapRouter, caller, SET_TOKEN0, hash160(token0));
+    }
+
+    private static Hash256 setToken1(Account caller, Hash160 token1) throws Throwable {
+        return invoke(swapRouter, caller, SET_TOKEN1, hash160(token1));
+    }
+
+    private static Hash256 setReserves(Account caller, int reserve0, int reserve1) throws Throwable {
+        return invoke(swapRouter, caller, SET_RESERVES, integer(reserve0), integer(reserve1));
     }
 }

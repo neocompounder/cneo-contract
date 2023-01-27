@@ -1,5 +1,6 @@
 package com.neocompounder.cneo;
 
+import com.neocompounder.cneo.interfaces.FlamingoSwapPairContract;
 import com.neocompounder.cneo.interfaces.FlamingoSwapRouterContract;
 
 import io.neow3j.devpack.ByteString;
@@ -7,6 +8,7 @@ import io.neow3j.devpack.Contract;
 import io.neow3j.devpack.ECPoint;
 import io.neow3j.devpack.Hash160;
 import io.neow3j.devpack.Helper;
+import io.neow3j.devpack.List;
 import io.neow3j.devpack.Runtime;
 import io.neow3j.devpack.Storage;
 import io.neow3j.devpack.StorageContext;
@@ -64,6 +66,8 @@ public class CompoundingNeo {
     private static final int INITIAL_MAX_GAS_REWARD = 100000000;
     // 10%
     private static final int INITIAL_MAX_FEE_PERCENT = 10;
+    // 10%
+    private static final int INITIAL_MAX_SLIPPAGE = 10;
     private static final int DECIMALS = 8;
     private static final String SYMBOL = "cNEO";
     private static final String BALANCE_OF = "balanceOf";
@@ -87,7 +91,9 @@ public class CompoundingNeo {
 
     private static final byte[] MAX_GAS_REWARD_KEY = new byte[]{0x0e};
     private static final byte[] MAX_FEE_PERCENT_KEY = new byte[]{0x0f};
-    private static final byte[] GAS_RESERVES_KEY = new byte[]{0x10};
+    private static final byte[] MAX_SLIPPAGE_KEY = new byte[]{0x10};
+    private static final byte[] GAS_RESERVES_KEY = new byte[]{0x11};
+    private static final byte[] SWAP_PAIR_GAS_INDEX_KEY = new byte[]{0x12};
 
     // Hex strings
     private static final ByteString PUSHDATA1 = new ByteString(new byte[]{0x0c});
@@ -142,7 +148,7 @@ public class CompoundingNeo {
     private static Event1Arg<Hash160> onSetOwner;
 
     @DisplayName("Update")
-    private static Event1Arg<ByteString> onUpdate;
+    private static Event1Arg<Boolean> onUpdate;
 
     @DisplayName("SetSwapRouterScriptHash")
     private static Event1Arg<Hash160> onSetSwapRouterScriptHash;
@@ -181,7 +187,7 @@ public class CompoundingNeo {
     public static void update(ByteString script, String manifest) {
         validateOwner("update");
         (new ContractManagement()).update(script, manifest);
-        onUpdate.fire(script);
+        onUpdate.fire(true);
     }
 
     public static void destroy() {
@@ -258,6 +264,20 @@ public class CompoundingNeo {
         validateOwner("setSwapPairScriptHash");
         validateContract(swapPairHash, "swapPairHash");
 
+        GasToken gasContract = new GasToken();
+        Hash160 gasHash = gasContract.getHash();
+        FlamingoSwapPairContract swapPairContract = new FlamingoSwapPairContract(swapPairHash);
+        Hash160 token0Hash = swapPairContract.getToken0();
+        Hash160 token1Hash = swapPairContract.getToken1();
+
+        if (gasHash.equals(token0Hash)) {
+            Storage.put(ctx, SWAP_PAIR_GAS_INDEX_KEY, 0);
+        } else if (gasHash.equals(token1Hash)) {
+            Storage.put(ctx, SWAP_PAIR_GAS_INDEX_KEY, 1);
+        } else {
+            abort("GAS is not one of the tokens in 'swapPairHash'", "setSwapPairScriptHash");
+        }
+
         Storage.put(ctx, SWAP_PAIR_HASH_KEY, swapPairHash);
         onSetSwapPairScriptHash.fire(swapPairHash);
     }
@@ -266,6 +286,11 @@ public class CompoundingNeo {
     public static Hash160 getSwapPairScriptHash() {
         final Hash160 storageVal = Storage.getHash160(rtx, SWAP_PAIR_HASH_KEY);
         return storageVal == null ? Hash160.zero() : storageVal;
+    }
+
+    @Safe
+    public static int getSwapPairGasIndex() {
+        return Storage.getIntOrZero(rtx, SWAP_PAIR_GAS_INDEX_KEY);
     }
 
     public static void setSwapRouterScriptHash(Hash160 swapRouterHash) {
@@ -280,6 +305,21 @@ public class CompoundingNeo {
     public static Hash160 getSwapRouterScriptHash() {
         final Hash160 storageVal = Storage.getHash160(rtx, SWAP_ROUTER_HASH_KEY);
         return storageVal == null ? Hash160.zero() : storageVal;
+    }
+
+    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) {
+        validateOwner("setBurgerAgentScriptHash");
+        validateContract(burgerAgentHash, "burgerAgentHash");
+
+        BNEO_AGENT_MAP.put(burgerAgentHash.toByteArray(), 1);
+        onSetBurgerAgentScriptHash.fire(burgerAgentHash);
+    }
+
+    public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) {
+        validateOwner("unsetBurgerAgentScriptHash");
+        validateHash160(burgerAgentHash, "burgerAgentHash");
+
+        BNEO_AGENT_MAP.delete(burgerAgentHash.toByteArray());
     }
 
     @Safe
@@ -316,18 +356,18 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_FEE_PERCENT : storageVal;
     }
 
-    public static void setMaxFeePercent(int maxFeePercent) {
-        validateOwner("setMaxFeePercent");
-        validatePositiveNumber(maxFeePercent, "maxFeePercent");
-        assert maxFeePercent < 100;
+    public static void setMaxSlippage(int maxSlippage) {
+        validateOwner("setMaxSlippage");
+        validatePositiveNumber(maxSlippage, "maxSlippage");
+        assert maxSlippage < 100;
 
-        Storage.put(ctx, MAX_FEE_PERCENT_KEY, maxFeePercent);
+        Storage.put(ctx, MAX_SLIPPAGE_KEY, maxSlippage);
     }
 
     @Safe
-    public static int getMaxFeePercent() {
-        final Integer storageVal = Storage.getInt(rtx, MAX_FEE_PERCENT_KEY);
-        return storageVal == null ? INITIAL_MAX_FEE_PERCENT : storageVal;
+    public static int getMaxSlippage() {
+        final Integer storageVal = Storage.getInt(rtx, MAX_SLIPPAGE_KEY);
+        return storageVal == null ? INITIAL_MAX_SLIPPAGE : storageVal;
     }
 
     public static void setMaxSupply(int maxSupply) {
@@ -372,19 +412,18 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_GAS_REWARD : storageVal;
     }
 
-    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) {
-        validateOwner("setBurgerAgentScriptHash");
-        validateContract(burgerAgentHash, "burgerAgentHash");
+    public static void setMaxFeePercent(int maxFeePercent) {
+        validateOwner("setMaxFeePercent");
+        validatePositiveNumber(maxFeePercent, "maxFeePercent");
+        assert maxFeePercent < 100;
 
-        BNEO_AGENT_MAP.put(burgerAgentHash.toByteArray(), 1);
-        onSetBurgerAgentScriptHash.fire(burgerAgentHash);
+        Storage.put(ctx, MAX_FEE_PERCENT_KEY, maxFeePercent);
     }
 
-    public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) {
-        validateOwner("unsetBurgerAgentScriptHash");
-        validateHash160(burgerAgentHash, "burgerAgentHash");
-
-        BNEO_AGENT_MAP.delete(burgerAgentHash.toByteArray());
+    @Safe
+    public static int getMaxFeePercent() {
+        final Integer storageVal = Storage.getInt(rtx, MAX_FEE_PERCENT_KEY);
+        return storageVal == null ? INITIAL_MAX_FEE_PERCENT : storageVal;
     }
 
     @Safe
@@ -895,8 +934,9 @@ public class CompoundingNeo {
 
         int beforeBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
         Hash160[] paths = new Hash160[]{ gasContract.getHash(), bneoHash };
+        int minBneoIn = computeMinBneoIn(gasQuantity);
         int deadline = Runtime.getTime() + 30;
-        boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(cneoHash, gasQuantity, 0, paths, deadline);
+        boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(cneoHash, gasQuantity, minBneoIn, paths, deadline);
         assert swapSuccess;
 
         int afterBalance = (int) Contract.call(bneoHash, BALANCE_OF, CallFlags.ReadOnly, new Object[]{cneoHash});
@@ -905,6 +945,18 @@ public class CompoundingNeo {
         addToBneoReserves(bneoQuantity);
 
         return bneoQuantity;
+    }
+
+    public static int computeMinBneoIn(int gasQuantity) {
+        int gasIndex = getSwapPairGasIndex();
+        FlamingoSwapPairContract swapPairContract = new FlamingoSwapPairContract(getSwapPairScriptHash());
+
+        List<Integer> reserves = swapPairContract.getReserves();
+        int gasReserves = reserves.get(gasIndex);
+        int bneoReserves = reserves.get(1 - gasIndex);
+        int bneoQuantity = (gasQuantity * bneoReserves) / gasReserves;
+
+        return (bneoQuantity * (PERCENT - getMaxSlippage())) / PERCENT;
     }
 
     private static void mint(Hash160 account, int mintQuantity) {
