@@ -20,9 +20,9 @@ They can later burn their `cNEO` tokens to redeem the underlying `bNEO`, which w
 
 ### Testnet
 
-Contract Address: `NXcTkq8sBeq9VCFmcsETmRgd9PF8UACoet`
+Contract Address: `NaWuywUm5W91L1VMk41Cy2iSvixmDoMaKT`
 
-Script Hash: `0x707b8d33c178b6b755a1f0936140a23310df5180`
+Script Hash: `0x74062287a66ddf4986ba2c5d7c20e09b32a52da0`
 
 ### Mainnet
 
