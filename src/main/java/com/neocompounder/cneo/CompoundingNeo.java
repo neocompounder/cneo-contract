@@ -207,7 +207,7 @@ public class CompoundingNeo {
 
         boolean isCompound = script.length() == 62
                           && script.range(0, 1).equals(PUSHDATA1)
-                          // script.range(2, 20) is the invoker's address, whose value we don't care much about
+                          // script.range(2, 20) is the invoker's address
                           && script.range(22, 4).equals(PUSH1_PACK_PUSH15_PUSHDATA1)
                           && script.range(27, 8).equals(COMPOUND) // compound
                           && script.range(37, 20).equals(cneo) // cNEO script hash
@@ -216,8 +216,12 @@ public class CompoundingNeo {
                           // an attacker could drain the contract's GAS through repeated FAULT transactions
                           && !tx.sender.toByteString().equals(cneo); // Sender
 
-        // Allow compound() to be called with verification from anyone
+        // Allow compound() to be called with verification from any non-contract address
+        // For now, this is the best we can do since the signers for any transactions in
+        // the current block are not available
         if (isCompound) {
+            Hash160 invoker = new Hash160(script.range(2, 20));
+            validateNonContract(invoker, "verify");
             return true;
         // Allow compoundReserves() and vote() to be called with verification from the owner
         } else if (Runtime.checkWitness(getOwner())) {
@@ -539,6 +543,7 @@ public class CompoundingNeo {
      */
     public static void compound(Hash160 account) {
         validateAccount(account, "compound");
+        validateNonContract(account, "compound");
         validateCompoundTime();
 
         Hash160 bneoHash = getBneoScriptHash();
@@ -1064,6 +1069,13 @@ public class CompoundingNeo {
         // Keeping this here so we can use it later if asserts later support messages
         // String message = "The parameter '" + hashName + "' must be a 20-byte address";
         assert Hash160.isValid(hash) && !hash.isZero();
+    }
+
+    private static void validateNonContract(Hash160 hash, String hashName) {
+        // Keeping this here so we can use it later if asserts later support messages
+        // String message = "The parameter '" + hashName + "' must be a contract hash";
+        validateHash160(hash, hashName);
+        assert (new ContractManagement()).getContract(hash) == null;
     }
 
     private static void validateContract(Hash160 hash, String hashName) {
