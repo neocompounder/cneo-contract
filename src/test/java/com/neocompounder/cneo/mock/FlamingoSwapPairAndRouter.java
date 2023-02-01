@@ -1,7 +1,6 @@
 package com.neocompounder.cneo.mock;
 
 import io.neow3j.devpack.ByteString;
-import io.neow3j.devpack.Contract;
 import io.neow3j.devpack.Hash160;
 import io.neow3j.devpack.Helper;
 import io.neow3j.devpack.List;
@@ -14,7 +13,6 @@ import io.neow3j.devpack.annotations.OnNEP17Payment;
 import io.neow3j.devpack.annotations.OnVerification;
 import io.neow3j.devpack.annotations.Permission;
 import io.neow3j.devpack.annotations.Safe;
-import io.neow3j.devpack.constants.CallFlags;
 import io.neow3j.devpack.contracts.ContractManagement;
 import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.contracts.StdLib;

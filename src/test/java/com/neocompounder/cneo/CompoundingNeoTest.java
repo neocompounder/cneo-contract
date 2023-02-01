@@ -9,7 +9,6 @@ import io.neow3j.protocol.core.response.NeoApplicationLog;
 import io.neow3j.protocol.core.response.NeoInvokeFunction;
 import io.neow3j.protocol.core.response.Notification;
 import io.neow3j.protocol.core.stackitem.StackItem;
-import io.neow3j.script.ScriptReader;
 import io.neow3j.test.ContractTest;
 import io.neow3j.test.ContractTestExtension;
 import io.neow3j.test.DeployConfig;
@@ -70,6 +69,8 @@ public class CompoundingNeoTest {
     private static final String SET_MAX_SUPPLY = "setMaxSupply";
     private static final String GET_GAS_REWARD = "getGasReward";
     private static final String SET_GAS_REWARD = "setGasReward";
+    private static final String GET_MAX_SWAP_GAS = "getMaxSwapGas";
+    private static final String SET_MAX_SWAP_GAS = "setMaxSwapGas";
     private static final String SET_BNEO_SCRIPT_HASH = "setBneoScriptHash";
     private static final String SET_SWAP_PAIR_SCRIPT_HASH = "setSwapPairScriptHash";
     private static final String SET_SWAP_ROUTER_SCRIPT_HASH = "setSwapRouterScriptHash";
@@ -468,6 +469,40 @@ public class CompoundingNeoTest {
 
     @Order(11)
     @Test
+    public void invokeMaxSwapGas() throws Throwable {
+        NeoInvokeFunction result = cNeo.callInvokeFunction(GET_MAX_SWAP_GAS);
+        assertEquals(new BigInteger("500000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+
+        Exception exception = assertThrows(TransactionConfigurationException.class, () -> {
+            setMaxSwapGas(other, new BigInteger("10"));
+        });
+        String actualMessage = exception.getMessage();
+        assertEquals(ABORT_MESSAGE, actualMessage);
+
+        exception = assertThrows(TransactionConfigurationException.class, () -> {
+            setGasReward(owner, new BigInteger("-1"));
+        });
+        actualMessage = exception.getMessage();
+        assertEquals(ASSERT_MESSAGE, actualMessage);
+
+        Hash256 txHash = setMaxSwapGas(owner, new BigInteger("100"));
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetMaxSwapGas", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("100"), stackItems.get(0).getInteger());
+
+        result = cNeo.callInvokeFunction(GET_MAX_SWAP_GAS);
+        assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
+
+        setMaxSwapGas(owner, new BigInteger("500000000000"));
+
+    }
+
+    @Order(12)
+    @Test
     public void invokeCompound() throws Throwable {
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
                 integer(new BigInteger("1000000000")), any(null));
@@ -491,19 +526,21 @@ public class CompoundingNeoTest {
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(other.getScriptHash())));
         BigInteger beforeGas = result.getInvocationResult().getStack().get(0).getInteger();
 
+        setMaxSwapGas(owner, new BigInteger("800000000"));
         setReserves(owner, 1, 1);
         InvokeVerifyResult verifyResult = compound(other);
         Hash256 txHash = verifyResult.txHash;
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
-        Notification n6 = execution.getNotifications().get(6);
-        assertEquals("Compound", n6.getEventName());
-        List<StackItem> stackItems = n6.getState().getList();
+        Notification n7 = execution.getNotifications().get(7);
+        assertEquals("Compound", n7.getEventName());
+        List<StackItem> stackItems = n7.getState().getList();
         assertEquals(other.getAddress(), stackItems.get(0).getAddress());
         assertEquals(new BigInteger("1000000000"), stackItems.get(1).getInteger());
         assertEquals(new BigInteger("1000000000"), stackItems.get(2).getInteger());
-        assertEquals(new BigInteger("100000000"), stackItems.get(3).getInteger());
+        assertEquals(new BigInteger("200000000"), stackItems.get(3).getInteger());
+        setMaxSwapGas(owner, new BigInteger("500000000000"));
 
         // The GAS balance of the invoker decreases by the execution cost and increases by the GAS reward
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(other.getScriptHash())));
@@ -524,18 +561,19 @@ public class CompoundingNeoTest {
 
         // We started with 100 GAS
         // Compounding claimed 10 GAS, so we kept 10% of 10 == 1 GAS in fees
-        BigInteger gasBalance = new BigInteger("10100000000").subtract(new BigInteger("10000000"));
+        // Due to the maxGasSwap, we also retained an extra 1 GAS to start with 102 GAS
+        BigInteger gasBalance = new BigInteger("10200000000").subtract(new BigInteger("10000000"));
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
         assertEquals(gasBalance, result.getInvocationResult().getStack().get(0).getInteger());
 
-        // 9 GAS was swapped for bNEO
+        // 8 GAS was swapped for bNEO
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("900000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("800000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(12)
+    @Order(13)
     @Test
     public void invokeMintWithNeo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
@@ -574,11 +612,11 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(13)
+    @Order(14)
     @Test
     public void invokeWithdrawGas() throws Throwable {
         NeoInvokeFunction result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("10090000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10190000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
         BigInteger beforeGas = result.getInvocationResult().getStack().get(0).getInteger();
@@ -598,10 +636,10 @@ public class CompoundingNeoTest {
         assertTrue(afterGas.compareTo(beforeGas) > 0);
 
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("9990000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10090000000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(14)
+    @Order(15)
     @Test
     public void invokeMaxSupply() throws Throwable {
         Hash256 txHash = transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
@@ -655,7 +693,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("109780219780"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(15)
+    @Order(16)
     @Test
     public void invokeCompoundReserves() throws Throwable {
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
@@ -666,11 +704,20 @@ public class CompoundingNeoTest {
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
         assertEquals(new BigInteger("111000000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
-        // Cannot compound more than the GAS reserves
+        // Cannot compound more than maxSwapGas
+        setMaxSwapGas(owner, new BigInteger("100000000000"));
         Exception exception = assertThrows(TransactionConfigurationException.class, () -> {
-            compoundReserves(owner, new BigInteger("100000000000"));
+            compoundReserves(owner, new BigInteger("100000000001"));
         });
         String actualMessage = exception.getMessage();
+        assertEquals(ASSERT_MESSAGE, actualMessage);
+
+        // Cannot compound more than the GAS reserves
+        setMaxSwapGas(owner, new BigInteger("500000000000"));
+        exception = assertThrows(TransactionConfigurationException.class, () -> {
+            compoundReserves(owner, new BigInteger("100000000000"));
+        });
+        actualMessage = exception.getMessage();
         assertEquals(ASSERT_MESSAGE, actualMessage);
 
         transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
@@ -694,7 +741,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(16)
+    @Order(17)
     @Test
     public void invokeConvertToNeo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
@@ -740,7 +787,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(17)
+    @Order(18)
     @Test
     public void invokeConvertToBneo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
@@ -784,7 +831,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("10"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(18)
+    @Order(19)
     @Test
     public void invokeVote() throws Throwable {
         transfer(neoToken, owner, hash160(owner.getScriptHash()), hash160(bNeo.getScriptHash()),
@@ -810,7 +857,7 @@ public class CompoundingNeoTest {
         NeoInvokeFunction result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(bNeo.getScriptHash())));
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("10900000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10800000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
         assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
@@ -832,10 +879,13 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("51510"), stackItems.get(2).getInteger());
         
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("10990050189"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10890050189"), result.getInvocationResult().getStack().get(0).getInteger());
+
+        transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
+                integer(new BigInteger("1000000000")), any(null));
     }
 
-    @Order(19)
+    @Order(20)
     @Test
     public void invokeMixedBurn() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
@@ -983,6 +1033,10 @@ public class CompoundingNeoTest {
 
     private static Hash256 setGasReward(Account caller, BigInteger gasReward) throws Throwable {
         return invoke(cNeo, caller, SET_GAS_REWARD, integer(gasReward));
+    }
+
+    private static Hash256 setMaxSwapGas(Account caller, BigInteger maxSwapGas) throws Throwable {
+        return invoke(cNeo, caller, SET_MAX_SWAP_GAS, integer(maxSwapGas));
     }
 
     private static Hash256 setBurgerAgentScriptHash(Account caller, SmartContract contract, Hash160 burgerAgent) throws Throwable {

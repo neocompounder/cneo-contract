@@ -68,6 +68,8 @@ public class CompoundingNeo {
     private static final int INITIAL_MAX_FEE_PERCENT() { return 10; }
     // 10%
     private static final int INITIAL_MAX_SLIPPAGE() { return 10; }
+    // 5000 GAS
+    private static final int INITIAL_MAX_SWAP_GAS() { return StringLiteralHelper.stringToInt("500000000000"); }
     private static final int DECIMALS() { return 8; }
     private static final String SYMBOL() { return "cNEO"; }
     private static final String BALANCE_OF() { return "balanceOf"; }
@@ -94,6 +96,7 @@ public class CompoundingNeo {
     private static final byte[] MAX_SLIPPAGE_KEY() { return new byte[]{0x10}; }
     private static final byte[] GAS_RESERVES_KEY() { return new byte[]{0x11}; }
     private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x12}; }
+    private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
 
     // Hex strings
     private static final ByteString PUSHDATA1() { return new ByteString(new byte[]{0x0c}); }
@@ -137,6 +140,9 @@ public class CompoundingNeo {
 
     @DisplayName("SetGasReward")
     private static Event1Arg<Integer> onSetGasReward;
+
+    @DisplayName("SetMaxSwapGas")
+    private static Event1Arg<Integer> onSetMaxSwapGas;
 
     @DisplayName("SetMaxSupply")
     private static Event1Arg<Integer> onSetMaxSupply;
@@ -435,6 +441,20 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_FEE_PERCENT() : storageVal;
     }
 
+    public static void setMaxSwapGas(int maxSwapGas) {
+        validateOwner("setMaxSwapGas");
+        validatePositiveNumber(maxSwapGas, "maxSwapGas");
+
+        Storage.put(CTX(), MAX_SWAP_GAS_KEY(), maxSwapGas);
+        onSetMaxSwapGas.fire(maxSwapGas);
+    }
+
+    @Safe
+    public static int getMaxSwapGas() {
+        final Integer storageVal = Storage.getInt(RTX(), MAX_SWAP_GAS_KEY());
+        return storageVal == null ? INITIAL_MAX_SWAP_GAS() : storageVal;
+    }
+
     @Safe
     public static String symbol() {
         return SYMBOL();
@@ -574,7 +594,17 @@ public class CompoundingNeo {
         int gasQuantity = afterBalance - beforeBalance;
         int treasuryCut = (gasQuantity * getFeePercent()) / PERCENT();
         int gasToSwap = gasQuantity - treasuryCut;
-        int bneoQuantity = gasToSwap > 0 ? swapGasForBneo(gasToSwap) : 0;
+
+        // If gasToSwap is too large, it will be clipped and
+        // the extra GAS will go to the treasury
+        // However, the compound period will then be halved to ensure that
+        // the GAS quantity will be smaller on the next compounding period
+        int clippedGasToSwap = Math.min(gasToSwap, getMaxSwapGas());
+        if (clippedGasToSwap < gasToSwap) {
+            treasuryCut = gasQuantity - clippedGasToSwap;
+            halveCompoundPeriod();
+        }
+        int bneoQuantity = clippedGasToSwap > 0 ? swapGasForBneo(clippedGasToSwap) : 0;
 
         // GAS accounting
         addToGasReserves(treasuryCut);
@@ -597,6 +627,7 @@ public class CompoundingNeo {
         validatePositiveNumber(gasQuantity, "gasQuantity");
 
         assert gasQuantity <= getGasReserves();
+        assert gasQuantity <= getMaxSwapGas();
 
         deductFromGasReserves(gasQuantity);
         int bneoQuantity = gasQuantity > 0 ? swapGasForBneo(gasQuantity) : 0;
@@ -941,6 +972,9 @@ public class CompoundingNeo {
     private static int swapGasForBneo(int gasQuantity) {
         validateNonNegativeNumber(gasQuantity, "gasQuantity");
 
+        // Protect against attackers swapping too much GAS at once
+        assert gasQuantity <= getMaxSwapGas();
+
         GasToken gasContract = new GasToken();
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
@@ -973,6 +1007,12 @@ public class CompoundingNeo {
         int percent = PERCENT();
 
         return (bneoQuantity * (percent - getMaxSlippage())) / percent;
+    }
+
+    private static void halveCompoundPeriod() {
+        int newCompoundPeriod = getCompoundPeriod() / 2;
+        Storage.put(CTX(), COMPOUND_PERIOD_KEY(), newCompoundPeriod);
+        onSetCompoundPeriod.fire(newCompoundPeriod);
     }
 
     private static void mint(Hash160 account, int mintQuantity) {
