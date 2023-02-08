@@ -26,9 +26,9 @@ Script Hash: `0x74062287a66ddf4986ba2c5d7c20e09b32a52da0`
 
 ### Mainnet
 
-Contract Address: `Not yet deployed`
+Contract Address: `NU1ATfppo3phxMasyxj7DMFHT9DgbuxgPP`
 
-Script Hash: `Not yet deployed`
+Script Hash: `0xc7b6f90dac749daa604a2cbe93243496597fbc58`
 
 ---
 
