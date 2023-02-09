@@ -99,7 +99,7 @@ public class CompoundingNeo {
     private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
 
     // Hex strings
-    private static final ByteString PUSHDATA1() { return new ByteString(new byte[]{0x0c}); }
+    private static final ByteString PUSHDATA1_20() { return StringLiteralHelper.hexToBytes("0c14"); };
     private static final ByteString PUSH1_PACK_PUSH15_PUSHDATA1() { return StringLiteralHelper.hexToBytes("11c01f0c"); }
     private static final ByteString COMPOUND() { return new ByteString("compound"); }
     private static final ByteString COMPOUND_RESERVES() { return new ByteString("compoundReserves"); }
@@ -212,10 +212,11 @@ public class CompoundingNeo {
         Transaction tx = (Transaction) Runtime.getScriptContainer();
         ByteString script = tx.script;
         ByteString cneo = Runtime.getExecutingScriptHash().toByteString();
+        ByteString sender = tx.sender.toByteString();
 
         boolean isCompound = script.length() == 62
-                          && script.range(0, 1).equals(PUSHDATA1())
-                          // script.range(2, 20) is the invoker's address
+                          && script.range(0, 2).equals(PUSHDATA1_20())
+                          && script.range(2, 20).equals(sender)
                           && script.range(22, 4).equals(PUSH1_PACK_PUSH15_PUSHDATA1())
                           && script.range(27, 8).equals(COMPOUND()) // compound
                           && script.range(37, 20).equals(cneo) // cNEO script hash
