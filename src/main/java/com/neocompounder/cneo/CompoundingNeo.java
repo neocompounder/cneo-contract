@@ -77,9 +77,7 @@ public class CompoundingNeo {
     // Keys
     private static final byte[] OWNER_KEY() { return new byte[]{0x00}; }
     private static final byte[] SUPPLY_KEY() { return new byte[]{0x01}; }
-    private static final byte[] NEO_RESERVES_KEY() { return new byte[]{0x02}; }
     private static final byte[] MAX_SUPPLY_KEY() { return new byte[]{0x03}; }
-    private static final byte[] BNEO_RESERVES_KEY() { return new byte[]{0x04}; }
     private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x05}; }
     private static final byte[] SWAP_PAIR_HASH_KEY() { return new byte[]{0x06}; }
     private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x07}; }
@@ -447,17 +445,21 @@ public class CompoundingNeo {
 
     @Safe
     public static int getBneoReserves() {
-        return Storage.getIntOrZero(RTX(), BNEO_RESERVES_KEY());
+        FungibleToken bneoContract = new FungibleToken(getBneoScriptHash());
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        return bneoContract.balanceOf(cneoHash);
     }
 
     @Safe
     public static int getNeoReserves() {
-        return Storage.getIntOrZero(RTX(), NEO_RESERVES_KEY());
+        NeoToken neoContract = new NeoToken();
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        return neoContract.balanceOf(cneoHash);
     }
 
     @Safe
     public static int getTotalReserves() {
-        return getBneoReserves() + (getNeoReserves() * getBneoMultiplier());
+        return getTotalReservesInternal(getBneoReserves(), getNeoReserves());
     }
 
     @Safe
@@ -472,17 +474,7 @@ public class CompoundingNeo {
      */
     @Safe
     public static int getReserveRatio() {
-        int totalReserves = getTotalReserves();
-        int cneoSupply = totalSupply();
-        int floatMultiplier = FLOAT_MULTIPLIER();
-
-        // Special case when cNEO supply is 0
-        if (cneoSupply == 0) {
-            return floatMultiplier;
-        }
-
-        // Otherwise, this is a valid number
-        return (floatMultiplier * totalReserves) / cneoSupply;
+        return getReserveRatioInternal(getBneoReserves(), getNeoReserves(), totalSupply());
     }
 
     public static boolean transfer(Hash160 from, Hash160 to, int amount, Object data) {
@@ -576,8 +568,8 @@ public class CompoundingNeo {
         NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
 
-        // GAS reserves >= GAS balance always and includes GAS accrued
-        // from NEO transfers in between calls of compound()
+        // GAS reserves <= GAS balance always so comparing against this quantity
+        // includes GAS accrued from NEO transfers in between calls of compound()
         int beforeBalance = getGasReserves();
 
         // Send 0 NEO to self to claim GAS
@@ -645,11 +637,7 @@ public class CompoundingNeo {
         validateOwner("convertToBneo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
 
-        int bneoQuantity = convertToBneoInternal(neoQuantity);
-
-        addToBneoReserves(bneoQuantity);
-        deductFromNeoReserves(neoQuantity);
-
+        convertToBneoInternal(neoQuantity);
         onConvertToBneo.fire(neoQuantity);
     }
 
@@ -679,9 +667,6 @@ public class CompoundingNeo {
         int afterBalance = (int) Contract.call(neoContract.getHash(), balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
         int actualNeoQuantity = afterBalance - beforeBalance;
         assert actualNeoQuantity == neoQuantity;
-
-        deductFromBneoReserves(bneoQuantity);
-        addToNeoReserves(neoQuantity);
 
         onConvertToNeo.fire(neoQuantity);
     }
@@ -794,11 +779,10 @@ public class CompoundingNeo {
 
     /**
      * This method swaps NEO reserves to bNEO reserves
-     * but **does not** handle the NEO/bNEO reserves accounting
      *
      * @param neoQuantity the quantity of NEO desired
      */
-    private static int convertToBneoInternal(int neoQuantity) {
+    private static void convertToBneoInternal(int neoQuantity) {
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         NeoToken neoContract = new NeoToken();
@@ -816,8 +800,6 @@ public class CompoundingNeo {
         int afterBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
         int actualBneoQuantity = afterBalance - beforeBalance;
         assert bneoQuantity == actualBneoQuantity;
-
-        return bneoQuantity;
     }
 
     /**
@@ -834,7 +816,24 @@ public class CompoundingNeo {
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         FungibleToken bneoContract = new FungibleToken(getBneoScriptHash());
 
-        int bneoQuantity = burnCneoForBneo(cneoQuantity, cneoHash);
+        int bneoToCneoRatio = getReserveRatio();
+        int computedBneoQuantity = (bneoToCneoRatio * cneoQuantity ) / FLOAT_MULTIPLIER();
+        // bneoQuantity can be greater than bneoReserves due to float precision
+        int bneoQuantity = Math.min(computedBneoQuantity, getTotalReserves());
+
+        burn(cneoHash, cneoQuantity);
+
+        // Convert NEO to bNEO if necessary
+        int bneoReserves = getBneoReserves();
+        if (bneoQuantity > bneoReserves) {
+            int missingBneoQuantity = bneoQuantity - bneoReserves;
+            int bneoMultiplier = getBneoMultiplier();
+            int floorNeoQuantity = missingBneoQuantity / bneoMultiplier;
+            int neoQuantity = missingBneoQuantity % bneoMultiplier == 0 ? floorNeoQuantity : floorNeoQuantity + 1;
+
+            convertToBneoInternal(neoQuantity);
+        }
+
         boolean transferSuccess = bneoContract.transfer(Runtime.getExecutingScriptHash(), account, bneoQuantity, null);
         assert transferSuccess;
     }
@@ -903,51 +902,21 @@ public class CompoundingNeo {
     }
 
     /**
-     * Burn cNEO corresponding to outgoing bNEO
-     *
-     * @param cneoQuantity the quantity of cNEO to be burned
-     * @param account      the account from which the cNEO is to be burned
-     * @return the released bNeo quantity
-     */
-    private static int burnCneoForBneo(int cneoQuantity, Hash160 account) {
-        int bneoToCneoRatio = getReserveRatio();
-        int computedBneoQuantity = (bneoToCneoRatio * cneoQuantity ) / FLOAT_MULTIPLIER();
-        // bneoQuantity can be greater than bneoReserves due to float precision
-        int bneoQuantity = Math.min(computedBneoQuantity, getTotalReserves());
-
-        burn(account, cneoQuantity);
-
-        // Convert NEO to bNEO if necessary
-        int bneoReserves = getBneoReserves();
-        int convertedBneoQuantity = 0;
-        if (bneoQuantity > bneoReserves) {
-            int missingBneoQuantity = bneoQuantity - bneoReserves;
-            int bneoMultiplier = getBneoMultiplier();
-            int floorNeoQuantity = missingBneoQuantity / bneoMultiplier;
-            int neoQuantity = missingBneoQuantity % bneoMultiplier == 0 ? floorNeoQuantity : floorNeoQuantity + 1;
-
-            convertedBneoQuantity = convertToBneoInternal(neoQuantity);
-            deductFromNeoReserves(neoQuantity);
-        }
-
-        // Accounting
-        int burnBneoQuantity = bneoQuantity - convertedBneoQuantity;
-        int newBneoReserves = getBneoReserves();
-        assert burnBneoQuantity <= newBneoReserves;
-
-        deductFromBneoReserves(bneoQuantity - convertedBneoQuantity);
-
-        return bneoQuantity;
-    }
-
-    /**
      * Mint cNEO corresponding to incoming bNEO
      *
      * @param bneoQuantity the quantity of bNEO to be locked
      * @param account      the account to which the cNEO is to be minted
      */
     private static void mintCneoFromBneo(int bneoQuantity, Hash160 account) {
-        int reserveRatio = getReserveRatio();
+        // We have to use the *old* reserve ratio,
+        // before the bneoQuantity has been received by the contract
+        int prevBneoReserves = getBneoReserves() - bneoQuantity;
+        assert prevBneoReserves >= 0;
+
+        int neoReserves = getNeoReserves();
+        int cneoSupply = totalSupply();
+        int reserveRatio = getReserveRatioInternal(prevBneoReserves, neoReserves, cneoSupply);
+
         // As total reserves increase, the quantity of cNEO minted per bNEO decreases
         int cneoQuantity = (FLOAT_MULTIPLIER() * bneoQuantity) / reserveRatio;
 
@@ -955,8 +924,6 @@ public class CompoundingNeo {
         int maxSupply = getMaxSupply();
         assert newSupply <= maxSupply;
 
-        // Accounting
-        addToBneoReserves(bneoQuantity);
         mint(account, cneoQuantity);
     }
 
@@ -988,8 +955,6 @@ public class CompoundingNeo {
 
         int afterBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
         int bneoQuantity = afterBalance - beforeBalance;
-
-        addToBneoReserves(bneoQuantity);
 
         return bneoQuantity;
     }
@@ -1072,22 +1037,6 @@ public class CompoundingNeo {
         addToBalance(key, -value);
     }
 
-    private static void addToBneoReserves(int value) {
-        Storage.put(CTX(), BNEO_RESERVES_KEY(), getBneoReserves() + value);
-    }
-
-    private static void deductFromBneoReserves(int value) {
-        addToBneoReserves(-value);
-    }
-
-    private static void addToNeoReserves(int value) {
-        Storage.put(CTX(), NEO_RESERVES_KEY(), getNeoReserves() + value);
-    }
-
-    private static void deductFromNeoReserves(int value) {
-        addToNeoReserves(-value);
-    }
-
     private static void addToGasReserves(int value) {
         Storage.put(CTX(), GAS_RESERVES_KEY(), getGasReserves() + value);
     }
@@ -1124,6 +1073,23 @@ public class CompoundingNeo {
         assert curTime >= nextCompound;
 
         setLastCompounded(curTime);
+    }
+
+    private static int getReserveRatioInternal(int bneoReserves, int neoReserves, int cneoSupply) {
+        int totalReserves = getTotalReservesInternal(bneoReserves, neoReserves);
+        int floatMultiplier = FLOAT_MULTIPLIER();
+
+        // Special case when cNEO supply is 0
+        if (cneoSupply == 0) {
+            return floatMultiplier;
+        }
+
+        // Otherwise, this is a valid number
+        return (floatMultiplier * totalReserves) / cneoSupply;
+    }
+
+    private static int getTotalReservesInternal(int bneoReserves, int neoReserves) {
+        return bneoReserves + (neoReserves * getBneoMultiplier());
     }
     
     private static void validateHash160(Hash160 hash, String hashName) {
