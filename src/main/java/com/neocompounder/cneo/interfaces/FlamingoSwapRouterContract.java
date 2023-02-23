@@ -12,5 +12,5 @@ public class FlamingoSwapRouterContract extends ContractInterface {
         super(contractHash);
     }
 
-    public native boolean swapTokenInForTokenOut(Hash160 sender, int amountIn, int amountOutMin, Hash160[] paths, int deadLine);
+    public native boolean swapTokenInForTokenOut(int amountIn, int amountOutMin, Hash160[] paths, int deadLine);
 }

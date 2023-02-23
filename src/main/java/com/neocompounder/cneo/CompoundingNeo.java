@@ -97,14 +97,10 @@ public class CompoundingNeo {
     private static final byte[] GAS_RESERVES_KEY() { return new byte[]{0x11}; }
     private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x12}; }
     private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
+    private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x14}; }
 
     // Hex strings
-    private static final ByteString PUSHDATA1_20() { return StringLiteralHelper.hexToBytes("0c14"); };
-    private static final ByteString PUSH1_PACK_PUSH15_PUSHDATA1() { return StringLiteralHelper.hexToBytes("11c01f0c"); }
-    private static final ByteString COMPOUND() { return new ByteString("compound"); }
-    private static final ByteString COMPOUND_RESERVES() { return new ByteString("compoundReserves"); }
     private static final ByteString VOTE() { return new ByteString("vote"); }
-    private static final ByteString SYSCALL_CONTRACT_CALL() { return StringLiteralHelper.hexToBytes("41627d5b52"); }
 
     // Events
     @DisplayName("Mint")
@@ -209,38 +205,10 @@ public class CompoundingNeo {
     @OnVerification
     @Safe
     public static boolean verify() {
-        Transaction tx = (Transaction) Runtime.getScriptContainer();
-        ByteString script = tx.script;
-        ByteString cneo = Runtime.getExecutingScriptHash().toByteString();
-        ByteString sender = tx.sender.toByteString();
-
-        boolean isCompound = script.length() == 62
-                          && script.range(0, 2).equals(PUSHDATA1_20())
-                          && script.range(2, 20).equals(sender)
-                          && script.range(22, 4).equals(PUSH1_PACK_PUSH15_PUSHDATA1())
-                          && script.range(27, 8).equals(COMPOUND()) // compound
-                          && script.range(37, 20).equals(cneo) // cNEO script hash
-                          && script.range(57, 5).equals(SYSCALL_CONTRACT_CALL()) // System.Contract.Call
-                          // Allowing the sender to be the contract is dangerous because
-                          // an attacker could drain the contract's GAS through repeated FAULT transactions
-                          && !tx.sender.toByteString().equals(cneo); // Sender
-
-        // Allow compound() to be called with verification from any non-contract address
-        // For now, this is the best we can do since the signers for any transactions in
-        // the current block are not available
-        if (isCompound) {
-            Hash160 invoker = new Hash160(script.range(2, 20));
-            validateNonContract(invoker, "verify");
-            return true;
-        // Allow compoundReserves() and vote() to be called with verification from the owner
-        } else if (Runtime.checkWitness(getOwner())) {
-            // This script can start with either PUSHINT32 or PUSHINT64
-            ByteString compoundReserves = COMPOUND_RESERVES();
-            boolean isCompoundReserves = (script.length() == 57 && script.range(14, 16).equals(compoundReserves))
-                                      || (script.length() == 53 && script.range(10, 16).equals(compoundReserves));
-            boolean isVote = script.length() == 71
-                          && script.range(40, 4).equals(VOTE());
-            return isCompoundReserves || isVote;
+        if (Runtime.checkWitness(getOwner())) {
+            Transaction tx = (Transaction) Runtime.getScriptContainer();
+            ByteString script = tx.script;
+            return script.length() == 71 && script.range(40, 4).equals(VOTE());
         }
         return false;
     }
@@ -547,9 +515,38 @@ public class CompoundingNeo {
     }
 
     /**
+     * This method is invoked by FlamingoSwapRouter to circumvent the need for a verify() method
+     * after we invoke swapTokenInForTokenOut
+     *
+     * @param token  the token to transfer - this is limited to GAS
+     * @param to     the contract to transfer to - this is limited to the FlamingoSwapRouter
+     * @param amount the quantity of GAS to transfer
+     * @param data   any additional data requested by the FlamingoSwapRouter
+     * @return       the success status of the GAS transfer
+     */
+    public static boolean approvedTransfer(Hash160 token, Hash160 to, int amount, byte[] data) {
+        // We only allow GAS transfers to swap for bNEO
+        GasToken gasContract = new GasToken();
+        assert token.equals(gasContract.getHash());
+
+        // We only allow transfers to the FlamingoSwapRouter
+        assert to.equals(getSwapPairScriptHash());
+
+        validateNonNegativeNumber(amount, "amount");
+
+        // The transaction quantity must have been pre-approved
+        assert getApprovedSwapQuantity() >= amount;
+        deductFromApprovedSwapQuantity(amount);
+
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        return gasContract.transfer(cneoHash, to, amount, data);
+    }
+
+    /**
      * Withdraw GAS profits from the contract
      *
-     * @param gasQuantity the quantity of GAS to withdraw
+     * @param account          the address of the GAS receiver
+     * @param withdrawQuantity the quantity of GAS to withdraw
      */
     public static void withdrawGas(Hash160 account, int withdrawQuantity) {
         validateOwner("withdrawGas");
@@ -985,7 +982,8 @@ public class CompoundingNeo {
         Hash160[] paths = new Hash160[]{ gasContract.getHash(), bneoHash };
         int minBneoIn = computeMinBneoIn(gasQuantity);
         int deadline = Runtime.getTime() + 30;
-        boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(cneoHash, gasQuantity, minBneoIn, paths, deadline);
+        addToApprovedSwapQuantity(gasQuantity);
+        boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(gasQuantity, minBneoIn, paths, deadline);
         assert swapSuccess;
 
         int afterBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
@@ -1096,6 +1094,18 @@ public class CompoundingNeo {
 
     private static void deductFromGasReserves(int value) {
         addToGasReserves(-value);
+    }
+
+    private static int getApprovedSwapQuantity() {
+        return Storage.getIntOrZero(RTX(), APPROVED_SWAP_QUANTITY_KEY());
+    }
+
+    private static void addToApprovedSwapQuantity(int value) {
+        Storage.put(CTX(), APPROVED_SWAP_QUANTITY_KEY(), getApprovedSwapQuantity() + value);
+    }
+
+    private static void deductFromApprovedSwapQuantity(int value) {
+        addToApprovedSwapQuantity(-value);
     }
 
     private static int getBalance(Hash160 key) {

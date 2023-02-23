@@ -528,7 +528,7 @@ public class CompoundingNeoTest {
 
         setMaxSwapGas(owner, new BigInteger("800000000"));
         setReserves(owner, 1, 1);
-        InvokeVerifyResult verifyResult = compound(other);
+        InvokeResult verifyResult = compound(other);
         Hash256 txHash = verifyResult.txHash;
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
@@ -724,7 +724,7 @@ public class CompoundingNeoTest {
                 integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
 
         setReserves(owner, 10, 1);
-        InvokeVerifyResult verifyResult = compoundReserves(owner, new BigInteger("10000000000"));
+        InvokeResult verifyResult = compoundReserves(owner, new BigInteger("10000000000"));
         Hash256 txHash = verifyResult.txHash;
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
@@ -867,7 +867,7 @@ public class CompoundingNeoTest {
 
         setReserves(owner, 1, 0);
         // No GAS in bNEO contract, so we only have GAS claim from our NEO that is sent to the swap router
-        InvokeVerifyResult verifyResult = compound(owner);
+        InvokeResult verifyResult = compound(owner);
         Hash256 txHash = verifyResult.txHash;
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
@@ -980,7 +980,7 @@ public class CompoundingNeoTest {
         return txHash;
     }
 
-    private static Hash256 invoke(SmartContract token, Account caller, String method, ContractParameter... params) throws Throwable {
+    private static InvokeResult invoke(SmartContract token, Account caller, String method, ContractParameter... params) throws Throwable {
         Transaction tx = token.invokeFunction(method, params)
                 .signers(AccountSigner.calledByEntry(caller))
                 .getUnsignedTransaction();
@@ -988,23 +988,23 @@ public class CompoundingNeoTest {
                 .addWitness(Witness.create(tx.getHashData(), caller.getECKeyPair()))
                 .send().getSendRawTransaction().getHash();
         Await.waitUntilTransactionIsExecuted(txHash, neow3j);
-        return txHash;
+        return new InvokeResult(tx, txHash);
     }
 
     private static Hash256 transfer(SmartContract token, Account caller, ContractParameter... params) throws Throwable {
-        return invoke(token, caller, TRANSFER, params);
+        return invoke(token, caller, TRANSFER, params).txHash;
     }
 
     private static Hash256 setBneoScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        return invoke(cNeo, caller, SET_BNEO_SCRIPT_HASH, hash160(contractHash));
+        return invoke(cNeo, caller, SET_BNEO_SCRIPT_HASH, hash160(contractHash)).txHash;
     }
 
     private static Hash256 setSwapPairScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        return invoke(cNeo, caller, SET_SWAP_PAIR_SCRIPT_HASH, hash160(contractHash));
+        return invoke(cNeo, caller, SET_SWAP_PAIR_SCRIPT_HASH, hash160(contractHash)).txHash;
     }
 
     private static Hash256 setSwapRouterScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        return invoke(cNeo, caller, SET_SWAP_ROUTER_SCRIPT_HASH, hash160(contractHash));
+        return invoke(cNeo, caller, SET_SWAP_ROUTER_SCRIPT_HASH, hash160(contractHash)).txHash;
     }
 
     private static Hash256 setOwner(Account newOwner, Account oldOwner) throws Throwable {
@@ -1020,82 +1020,82 @@ public class CompoundingNeoTest {
     }
 
     private static Hash256 setCompoundPeriod(Account caller, BigInteger compoundPeriod) throws Throwable {
-        return invoke(cNeo, caller, SET_COMPOUND_PERIOD, integer(compoundPeriod));
+        return invoke(cNeo, caller, SET_COMPOUND_PERIOD, integer(compoundPeriod)).txHash;
     }
 
     private static Hash256 setFeePercent(Account caller, BigInteger feePercent) throws Throwable {
-        return invoke(cNeo, caller, SET_FEE_PERCENT, integer(feePercent));
+        return invoke(cNeo, caller, SET_FEE_PERCENT, integer(feePercent)).txHash;
     }
 
     private static Hash256 setMaxSupply(Account caller, BigInteger maxSupply) throws Throwable {
-        return invoke(cNeo, caller, SET_MAX_SUPPLY, integer(maxSupply));
+        return invoke(cNeo, caller, SET_MAX_SUPPLY, integer(maxSupply)).txHash;
     }
 
     private static Hash256 setGasReward(Account caller, BigInteger gasReward) throws Throwable {
-        return invoke(cNeo, caller, SET_GAS_REWARD, integer(gasReward));
+        return invoke(cNeo, caller, SET_GAS_REWARD, integer(gasReward)).txHash;
     }
 
     private static Hash256 setMaxSwapGas(Account caller, BigInteger maxSwapGas) throws Throwable {
-        return invoke(cNeo, caller, SET_MAX_SWAP_GAS, integer(maxSwapGas));
+        return invoke(cNeo, caller, SET_MAX_SWAP_GAS, integer(maxSwapGas)).txHash;
     }
 
     private static Hash256 setBurgerAgentScriptHash(Account caller, SmartContract contract, Hash160 burgerAgent) throws Throwable {
-        return invoke(contract, caller, SET_BURGER_AGENT_SCRIPT_HASH, hash160(burgerAgent));
+        return invoke(contract, caller, SET_BURGER_AGENT_SCRIPT_HASH, hash160(burgerAgent)).txHash;
     }
 
-    private static class InvokeVerifyResult {
+    private static class InvokeResult {
         Transaction tx;
         Hash256 txHash;
 
-        public InvokeVerifyResult(Transaction tx, Hash256 txHash) {
+        public InvokeResult(Transaction tx, Hash256 txHash) {
             this.tx = tx;
             this.txHash = txHash;
         }
     }
 
-    private static InvokeVerifyResult invokeVerify(SmartContract token, Account caller, String method, ContractParameter... params) throws Throwable {
+    private static InvokeResult invokeVerify(SmartContract token, Account caller, String method, ContractParameter... params) throws Throwable {
         Transaction tx = token.invokeFunction(method, params)
                 .signers(AccountSigner.calledByEntry(caller), ContractSigner.global(cNeo.getScriptHash()))
                 .sign();
         Hash256 txHash = tx
                 .send().getSendRawTransaction().getHash();
         Await.waitUntilTransactionIsExecuted(txHash, neow3j);
-        return new InvokeVerifyResult(tx, txHash);
+        return new InvokeResult(tx, txHash);
     }
 
-    private static InvokeVerifyResult vote(Account caller, ECPublicKey candidate) throws Throwable {
+    private static InvokeResult vote(Account caller, ECPublicKey candidate) throws Throwable {
         return invokeVerify(cNeo, caller, VOTE, publicKey(candidate));
     }
 
-    private static InvokeVerifyResult compound(Account caller) throws Throwable {
-        return invokeVerify(cNeo, caller, COMPOUND, hash160(caller.getScriptHash()));
+    private static InvokeResult compound(Account caller) throws Throwable {
+        return invoke(cNeo, caller, COMPOUND, hash160(caller.getScriptHash()));
     }
 
-    private static InvokeVerifyResult compoundReserves(Account caller, BigInteger gasQuantity) throws Throwable {
-        return invokeVerify(cNeo, caller, COMPOUND_RESERVES, integer(gasQuantity));
+    private static InvokeResult compoundReserves(Account caller, BigInteger gasQuantity) throws Throwable {
+        return invoke(cNeo, caller, COMPOUND_RESERVES, integer(gasQuantity));
     }
 
     private static Hash256 convertToNeo(Account caller, BigInteger neoQuantity) throws Throwable {
-        return invoke(cNeo, caller, CONVERT_TO_NEO, integer(neoQuantity));
+        return invoke(cNeo, caller, CONVERT_TO_NEO, integer(neoQuantity)).txHash;
     }
 
     private static Hash256 convertToBneo(Account caller, BigInteger neoQuantity) throws Throwable {
-        return invoke(cNeo, caller, CONVERT_TO_BNEO, integer(neoQuantity));
+        return invoke(cNeo, caller, CONVERT_TO_BNEO, integer(neoQuantity)).txHash;
     }
 
     private static Hash256 withdrawGas(Account caller, BigInteger withdrawQuantity) throws Throwable {
-        return invoke(cNeo, caller, WITHDRAW_GAS, hash160(caller.getScriptHash()), integer(withdrawQuantity));
+        return invoke(cNeo, caller, WITHDRAW_GAS, hash160(caller.getScriptHash()), integer(withdrawQuantity)).txHash;
     }
 
     private static Hash256 setToken0(Account caller, Hash160 token0) throws Throwable {
-        return invoke(swapRouter, caller, SET_TOKEN0, hash160(token0));
+        return invoke(swapRouter, caller, SET_TOKEN0, hash160(token0)).txHash;
     }
 
     private static Hash256 setToken1(Account caller, Hash160 token1) throws Throwable {
-        return invoke(swapRouter, caller, SET_TOKEN1, hash160(token1));
+        return invoke(swapRouter, caller, SET_TOKEN1, hash160(token1)).txHash;
     }
 
     private static Hash256 setReserves(Account caller, int reserve0, int reserve1) throws Throwable {
-        return invoke(swapRouter, caller, SET_RESERVES, integer(reserve0), integer(reserve1));
+        return invoke(swapRouter, caller, SET_RESERVES, integer(reserve0), integer(reserve1)).txHash;
     }
 }

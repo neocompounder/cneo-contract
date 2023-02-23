@@ -1,6 +1,7 @@
 package com.neocompounder.cneo.mock;
 
 import io.neow3j.devpack.ByteString;
+import io.neow3j.devpack.Contract;
 import io.neow3j.devpack.Hash160;
 import io.neow3j.devpack.Helper;
 import io.neow3j.devpack.List;
@@ -13,6 +14,7 @@ import io.neow3j.devpack.annotations.OnNEP17Payment;
 import io.neow3j.devpack.annotations.OnVerification;
 import io.neow3j.devpack.annotations.Permission;
 import io.neow3j.devpack.annotations.Safe;
+import io.neow3j.devpack.constants.CallFlags;
 import io.neow3j.devpack.contracts.ContractManagement;
 import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.contracts.StdLib;
@@ -115,12 +117,12 @@ public class FlamingoSwapPairAndRouter {
         // Do nothing
     }
 
-    public static boolean swapTokenInForTokenOut(Hash160 sender, int amountIn, int amountOutMin, Hash160[] paths, int deadLine) throws Exception {
+    public static boolean swapTokenInForTokenOut(int amountIn, int amountOutMin, Hash160[] paths, int deadLine) throws Exception {
+        Hash160 sender = Runtime.getCallingScriptHash();
         Hash160 routerHash = Runtime.getExecutingScriptHash();
 
-        FungibleToken inToken = new FungibleToken(paths[0]);
         FungibleToken outToken = new FungibleToken(paths[1]);
-        if (!inToken.transfer(sender, routerHash, amountIn, null)) {
+        if (!((boolean) Contract.call(sender, "approvedTransfer", CallFlags.All, new Object[]{paths[0], routerHash, amountIn, null}))) {
             throw new Exception("Failed to transfer inToken");
         }
         int amountOut = outToken.balanceOf(routerHash);
