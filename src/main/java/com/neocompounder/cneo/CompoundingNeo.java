@@ -957,11 +957,10 @@ public class CompoundingNeo {
         int newSupply = totalSupply() + cneoQuantity;
         int maxSupply = getMaxSupply();
         assert newSupply <= maxSupply;
-        
-        mint(account, cneoQuantity);
 
         // Accounting
         addToBneoReserves(bneoQuantity);
+        mint(account, cneoQuantity);
     }
 
     /**
