@@ -164,13 +164,8 @@ public class CompoundingNeo {
 
             // Initialize the supply
             StorageContext ctx = CTX();
-            int initialSupply = INITIAL_SUPPLY();
-            Storage.put(ctx, SUPPLY_KEY(), initialSupply);
             Storage.put(ctx, OWNER_KEY(), owner);
-
-            // Allocate all tokens to the contract owner.
-            BALANCE_MAP().put(owner.toByteArray(), initialSupply);
-            onTransfer.fire(null, owner, initialSupply);
+            mint(owner, INITIAL_SUPPLY());
         }
     }
 
