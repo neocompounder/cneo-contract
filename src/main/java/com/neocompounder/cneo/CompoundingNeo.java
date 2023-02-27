@@ -6,7 +6,6 @@ import com.neocompounder.cneo.interfaces.FlamingoSwapRouterContract;
 
 import io.neow3j.devpack.ByteString;
 import io.neow3j.devpack.Contract;
-import io.neow3j.devpack.ECPoint;
 import io.neow3j.devpack.Hash160;
 import io.neow3j.devpack.Helper;
 import io.neow3j.devpack.List;
@@ -15,13 +14,11 @@ import io.neow3j.devpack.Storage;
 import io.neow3j.devpack.StorageContext;
 import io.neow3j.devpack.StorageMap;
 import io.neow3j.devpack.StringLiteralHelper;
-import io.neow3j.devpack.Transaction;
 import io.neow3j.devpack.annotations.ContractSourceCode;
 import io.neow3j.devpack.annotations.DisplayName;
 import io.neow3j.devpack.annotations.ManifestExtra;
 import io.neow3j.devpack.annotations.OnDeployment;
 import io.neow3j.devpack.annotations.OnNEP17Payment;
-import io.neow3j.devpack.annotations.OnVerification;
 import io.neow3j.devpack.annotations.Permission;
 import io.neow3j.devpack.annotations.Safe;
 import io.neow3j.devpack.annotations.Struct;
@@ -48,8 +45,6 @@ public class CompoundingNeo {
     private static StorageContext CTX() { return Storage.getStorageContext(); }
     private static StorageContext RTX() { return Storage.getReadOnlyContext(); }
 
-    // Until the project is profitable, we may need to top up contract GAS reserves
-    private static final String ACTION_TOP_UP_GAS() { return "TOP_UP_GAS"; }
     // 1e18
     private static int FLOAT_MULTIPLIER() { return StringLiteralHelper.stringToInt("1000000000000000000"); }
     // To redeem bNEO to NEO, we need to send 100000 GAS per 1 NEO
@@ -696,19 +691,9 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 4: non-null payload - must satisfy (data instanceof List) && (data[0] instanceof String)
+        // Case 4: non-null payload
         else if (data != null) {
-            NEP17Payload params = (NEP17Payload) data;
-            String action = params.action;
-
-            // 4a) GAS top-up for continued operations
-            if (tokenHash.equals(gasContract.getHash()) && ACTION_TOP_UP_GAS().equals(action)) {
-                onTopUpGas.fire(from, amount);
-                return;
-            }
-            else {
-                abort("NEP17Transfer with non-null payload but unknown action", "onNEP17Payment");
-            }
+            abort("NEP17Transfer with non-null payload not supported", "onNEP17Payment");
         }
 
         // Case 5: null payload, not from earlier cases
@@ -724,6 +709,11 @@ public class CompoundingNeo {
             // 5c) Handle incoming cNEO: withdraw bNEO
             else if (tokenHash.equals(cneoHash)) {
                 handleBneoWithdraw(from, amount);
+            }
+            // 5d) GAS top-up for continued operations
+            else if (tokenHash.equals(gasContract.getHash())) {
+                onTopUpGas.fire(from, amount);
+                return;
             }
             else {
                 abort("NEP17Transfer with null params must be one of NEO, bNEO, or cNEO", "onNEP17Payment");

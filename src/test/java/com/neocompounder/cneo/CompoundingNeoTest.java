@@ -273,7 +273,7 @@ public class CompoundingNeoTest {
         assertEquals(ABORT_MESSAGE, actualMessage);
 
         Hash256 txHash = transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
-                integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
+                integer(new BigInteger("10000000000")), any(null));
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
@@ -665,7 +665,7 @@ public class CompoundingNeoTest {
     @Test
     public void invokeMaxSupply() throws Throwable {
         Hash256 txHash = transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
-                integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
+                integer(new BigInteger("10000000000")), any(null));
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
@@ -743,7 +743,7 @@ public class CompoundingNeoTest {
         assertEquals(ASSERT_MESSAGE, actualMessage);
 
         transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
-                integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
+                integer(new BigInteger("10000000000")), any(null));
 
         setReserves(owner, 10, 1);
         InvokeResult invokeResult = compoundReserves(owner, new BigInteger("10000000000"));
@@ -860,7 +860,7 @@ public class CompoundingNeoTest {
                 integer(new BigInteger("2000")), any(null));
 
         transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
-                integer(new BigInteger("10000000000")), array(string("TOP_UP_GAS")));
+                integer(new BigInteger("10000000000")), any(null));
 
         // Empty out GAS of bNEO contract
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(bNeo.getScriptHash()),
