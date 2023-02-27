@@ -174,7 +174,7 @@ public class CompoundingNeoVoter {
      * 
      * @param neoQuantity the quantity of NEO to convert to bNEO and withdraw
      */
-    public static void withdrawBneo(int neoQuantity) {
+    public static boolean withdrawBneo(int neoQuantity) {
         Hash160 cneoHash = getCneoScriptHash();
         validateAccount(cneoHash, "withdrawBneo");
 
@@ -195,7 +195,7 @@ public class CompoundingNeoVoter {
         int actualBneoQuantity = afterBalance - beforeBalance;
         assert bneoQuantity == actualBneoQuantity;
 
-        bneoContract.transfer(voterHash, cneoHash, bneoQuantity, null);
+        return bneoContract.transfer(voterHash, cneoHash, bneoQuantity, null);
     }
 
     private static int getBneoMultiplier() {

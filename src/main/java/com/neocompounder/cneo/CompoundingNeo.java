@@ -589,7 +589,10 @@ public class CompoundingNeo {
         validateOwner("convertToBneo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
 
-        convertToBneoInternal(neoQuantity);
+        CompoundingNeoVoterContract voterContract = new CompoundingNeoVoterContract(getVoterScriptHash());
+        assert neoQuantity <= getNeoReserves();
+        assert voterContract.withdrawBneo(neoQuantity);
+
         onConvertToBneo.fire(neoQuantity);
     }
 
@@ -711,18 +714,6 @@ public class CompoundingNeo {
     // Helper Methods
 
     /**
-     * This method swaps NEO reserves to bNEO reserves
-     *
-     * @param neoQuantity the quantity of NEO desired
-     */
-    private static void convertToBneoInternal(int neoQuantity) {
-        CompoundingNeoVoterContract voterContract = new CompoundingNeoVoterContract(getVoterScriptHash());
-
-        assert neoQuantity <= getNeoReserves();
-        voterContract.withdrawBneo(neoQuantity);
-    }
-
-    /**
      * 1. Burn the cNEO offered by the user
      * 2. Send the corresponding quantity of bNEO back to the requesting user
      * 
@@ -751,7 +742,9 @@ public class CompoundingNeo {
             int floorNeoQuantity = missingBneoQuantity / bneoMultiplier;
             int neoQuantity = missingBneoQuantity % bneoMultiplier == 0 ? floorNeoQuantity : floorNeoQuantity + 1;
 
-            convertToBneoInternal(neoQuantity);
+            CompoundingNeoVoterContract voterContract = new CompoundingNeoVoterContract(getVoterScriptHash());
+            assert neoQuantity <= getNeoReserves();
+            assert voterContract.withdrawBneo(neoQuantity);
         }
 
         boolean transferSuccess = bneoContract.transfer(Runtime.getExecutingScriptHash(), account, bneoQuantity, null);
