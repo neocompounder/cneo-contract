@@ -35,7 +35,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import com.neocompounder.cneo.mock.BNeoToken;
 import com.neocompounder.cneo.mock.BurgerAgent;
-import com.neocompounder.cneo.mock.FlamingoSwapPairAndRouter;
+import com.neocompounder.cneo.mock.FlamingoSwapFactoryRouterPair;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@ContractTest(blockTime = 1, contracts = { CompoundingNeo.class, CompoundingNeoVoter.class, BNeoToken.class, BurgerAgent.class, FlamingoSwapPairAndRouter.class }, configFile="default.neo-express")
+@ContractTest(blockTime = 1, contracts = { CompoundingNeo.class, CompoundingNeoVoter.class, BNeoToken.class, BurgerAgent.class, FlamingoSwapFactoryRouterPair.class }, configFile="default.neo-express")
 public class CompoundingNeoTest {
 
     private static final String SET_OWNER = "setOwner";
@@ -74,7 +74,7 @@ public class CompoundingNeoTest {
     private static final String SET_BNEO_SCRIPT_HASH = "setBneoScriptHash";
     private static final String SET_CNEO_SCRIPT_HASH = "setCneoScriptHash";
     private static final String SET_VOTER_SCRIPT_HASH = "setVoterScriptHash";
-    private static final String SET_SWAP_PAIR_SCRIPT_HASH = "setSwapPairScriptHash";
+    private static final String SET_SWAP_FACTORY_SCRIPT_HASH = "setSwapFactoryScriptHash";
     private static final String SET_SWAP_ROUTER_SCRIPT_HASH = "setSwapRouterScriptHash";
     private static final String SET_BURGER_AGENT_SCRIPT_HASH = "setBurgerAgentScriptHash";
     private static final String GET_TOTAL_RESERVES = "getTotalReserves";
@@ -120,7 +120,7 @@ public class CompoundingNeoTest {
         voter = ext.getDeployedContract(CompoundingNeoVoter.class);
         bNeo = ext.getDeployedContract(BNeoToken.class);
         burgerAgent = ext.getDeployedContract(BurgerAgent.class);
-        swapRouter = ext.getDeployedContract(FlamingoSwapPairAndRouter.class);
+        swapRouter = ext.getDeployedContract(FlamingoSwapFactoryRouterPair.class);
         neoToken = new NeoToken(neow3j);
         gasToken = new GasToken(neow3j);
         transferFromGenesis(neoToken, hash160(genesis.getMultiSigAccount().getScriptHash()),
@@ -165,7 +165,7 @@ public class CompoundingNeoTest {
         return config;
     }
 
-    @DeployConfig(FlamingoSwapPairAndRouter.class)
+    @DeployConfig(FlamingoSwapFactoryRouterPair.class)
     public static DeployConfiguration configureRouter() throws Exception {
         DeployConfiguration config = new DeployConfiguration();
         owner = ext.getAccount(OWNER);
@@ -183,7 +183,7 @@ public class CompoundingNeoTest {
         setCneoScriptHash(owner, cNeo.getScriptHash());
         setVoterScriptHash(owner, voter.getScriptHash());
         setSwapRouterScriptHash(owner, swapRouter.getScriptHash());
-        setSwapPairScriptHash(owner, swapRouter.getScriptHash());
+        setSwapFactoryScriptHash(owner, swapRouter.getScriptHash());
         setBurgerAgentScriptHash(owner, bNeo, burgerAgent.getScriptHash());
 
         NeoInvokeFunction result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
@@ -1029,8 +1029,8 @@ public class CompoundingNeoTest {
         return invoke(cNeo, caller, SET_VOTER_SCRIPT_HASH, hash160(contractHash)).txHash;
     }
 
-    private static Hash256 setSwapPairScriptHash(Account caller, Hash160 contractHash) throws Throwable {
-        return invoke(cNeo, caller, SET_SWAP_PAIR_SCRIPT_HASH, hash160(contractHash)).txHash;
+    private static Hash256 setSwapFactoryScriptHash(Account caller, Hash160 contractHash) throws Throwable {
+        return invoke(cNeo, caller, SET_SWAP_FACTORY_SCRIPT_HASH, hash160(contractHash)).txHash;
     }
 
     private static Hash256 setSwapRouterScriptHash(Account caller, Hash160 contractHash) throws Throwable {

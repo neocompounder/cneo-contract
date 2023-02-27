@@ -20,13 +20,11 @@ import io.neow3j.devpack.contracts.FungibleToken;
 import io.neow3j.devpack.contracts.StdLib;
 import io.neow3j.devpack.events.Event2Args;
 
-@DisplayName("FlamingoSwapPairAndRouter")
+@DisplayName("FlamingoSwapFactoryRouterPair")
 @Permission(contract = "*", methods = "*")
-public class FlamingoSwapPairAndRouter {
+public class FlamingoSwapFactoryRouterPair {
 
     private static StorageContext ctx = Storage.getStorageContext();
-
-    private static final String BALANCE_OF = "balanceOf";
 
     // Keys
     private static byte[] OWNER_KEY = new byte[]{0x00};
@@ -132,6 +130,10 @@ public class FlamingoSwapPairAndRouter {
         }
 
         return true;
+    }
+
+    public static Hash160 getExchangePair(Hash160 tokenA, Hash160 tokenB) {
+        return Runtime.getExecutingScriptHash();
     }
 
     private static void fireErrorAndAbort(String msg, String method) {

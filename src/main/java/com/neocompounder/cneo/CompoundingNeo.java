@@ -1,6 +1,7 @@
 package com.neocompounder.cneo;
 
 import com.neocompounder.cneo.interfaces.CompoundingNeoVoterContract;
+import com.neocompounder.cneo.interfaces.FlamingoSwapFactoryContract;
 import com.neocompounder.cneo.interfaces.FlamingoSwapPairContract;
 import com.neocompounder.cneo.interfaces.FlamingoSwapRouterContract;
 
@@ -73,8 +74,8 @@ public class CompoundingNeo {
     private static final byte[] OWNER_KEY() { return new byte[]{0x00}; }
     private static final byte[] SUPPLY_KEY() { return new byte[]{0x01}; }
     private static final byte[] MAX_SUPPLY_KEY() { return new byte[]{0x03}; }
-    private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x04}; }
-    private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x05}; }
+    private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x04}; }
+    private static final byte[] SWAP_FACTORY_HASH_KEY() { return new byte[]{0x05}; }
     private static final byte[] SWAP_PAIR_HASH_KEY() { return new byte[]{0x06}; }
     private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x07}; }
     private static final byte[] LAST_COMPOUNDED_KEY() { return new byte[]{0x08}; }
@@ -84,6 +85,7 @@ public class CompoundingNeo {
 
     private static StorageMap BALANCE_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x0c}); }
 
+    private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x0d}; }
     private static final byte[] MAX_GAS_REWARD_KEY() { return new byte[]{0x0e}; }
     private static final byte[] MAX_FEE_PERCENT_KEY() { return new byte[]{0x0f}; }
     private static final byte[] MAX_SLIPPAGE_KEY() { return new byte[]{0x10}; }
@@ -141,11 +143,11 @@ public class CompoundingNeo {
     @DisplayName("Update")
     private static Event1Arg<Boolean> onUpdate;
 
+    @DisplayName("SetSwapFactoryScriptHash")
+    private static Event1Arg<Hash160> onSetSwapFactoryScriptHash;
+
     @DisplayName("SetSwapRouterScriptHash")
     private static Event1Arg<Hash160> onSetSwapRouterScriptHash;
-
-    @DisplayName("SetSwapPairScriptHash")
-    private static Event1Arg<Hash160> onSetSwapPairScriptHash;
 
     @DisplayName("SetBneoScriptHash")
     private static Event1Arg<Hash160> onSetBneoScriptHash;
@@ -225,30 +227,6 @@ public class CompoundingNeo {
         return storageVal == null ? Hash160.zero() : storageVal;
     }
 
-    public static void setSwapPairScriptHash(Hash160 swapPairHash) {
-        validateOwner("setSwapPairScriptHash");
-        validateContract(swapPairHash, "swapPairHash");
-
-        GasToken gasContract = new GasToken();
-        Hash160 gasHash = gasContract.getHash();
-        FlamingoSwapPairContract swapPairContract = new FlamingoSwapPairContract(swapPairHash);
-        Hash160 token0Hash = swapPairContract.getToken0();
-        Hash160 token1Hash = swapPairContract.getToken1();
-
-        StorageContext ctx = CTX();
-        byte[] swapPairGasIndexKey = SWAP_PAIR_GAS_INDEX_KEY();
-        if (gasHash.equals(token0Hash)) {
-            Storage.put(ctx, swapPairGasIndexKey, 0);
-        } else if (gasHash.equals(token1Hash)) {
-            Storage.put(ctx, swapPairGasIndexKey, 1);
-        } else {
-            abort("GAS is not one of the tokens in 'swapPairHash'", "setSwapPairScriptHash");
-        }
-
-        Storage.put(ctx, SWAP_PAIR_HASH_KEY(), swapPairHash);
-        onSetSwapPairScriptHash.fire(swapPairHash);
-    }
-
     @Safe
     public static Hash160 getSwapPairScriptHash() {
         final Hash160 storageVal = Storage.getHash160(RTX(), SWAP_PAIR_HASH_KEY());
@@ -258,6 +236,20 @@ public class CompoundingNeo {
     @Safe
     public static int getSwapPairGasIndex() {
         return Storage.getIntOrZero(RTX(), SWAP_PAIR_GAS_INDEX_KEY());
+    }
+
+    public static void setSwapFactoryScriptHash(Hash160 swapFactoryHash) {
+        validateOwner("setSwapFactoryScriptHash");
+        validateContract(swapFactoryHash, "swapFactoryHash");
+
+        Storage.put(CTX(), SWAP_FACTORY_HASH_KEY(), swapFactoryHash);
+        onSetSwapFactoryScriptHash.fire(swapFactoryHash);
+    }
+
+    @Safe
+    public static Hash160 getSwapFactoryScriptHash() {
+        final Hash160 storageVal = Storage.getHash160(RTX(), SWAP_FACTORY_HASH_KEY());
+        return storageVal == null ? Hash160.zero() : storageVal;
     }
 
     public static void setSwapRouterScriptHash(Hash160 swapRouterHash) {
@@ -861,7 +853,12 @@ public class CompoundingNeo {
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         FlamingoSwapRouterContract swapRouterContract = new FlamingoSwapRouterContract(getSwapRouterScriptHash());
+        FlamingoSwapFactoryContract swapFactoryContract = new FlamingoSwapFactoryContract(getSwapFactoryScriptHash());
         String balanceOf = BALANCE_OF();
+
+        // Update swap pair hash if necessary
+        Hash160 swapPairHash = swapFactoryContract.getExchangePair(gasContract.getHash(), bneoHash);
+        setSwapPairScriptHash(swapPairHash);
 
         int beforeBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
         Hash160[] paths = new Hash160[]{ gasContract.getHash(), bneoHash };
@@ -1000,6 +997,34 @@ public class CompoundingNeo {
 
     private static int getTotalReservesInternal(int bneoReserves, int neoReserves) {
         return bneoReserves + (neoReserves * getBneoMultiplier());
+    }
+
+    private static void setSwapPairScriptHash(Hash160 swapPairHash) {
+        validateContract(swapPairHash, "swapPairHash");
+
+        // Do nothing if the swap pair has not changed since the previous invocation
+        Hash160 prevSwapPairHash = getSwapPairScriptHash();
+        if (swapPairHash.equals(prevSwapPairHash)) {
+            return;
+        }
+
+        GasToken gasContract = new GasToken();
+        Hash160 gasHash = gasContract.getHash();
+        FlamingoSwapPairContract swapPairContract = new FlamingoSwapPairContract(swapPairHash);
+        Hash160 token0Hash = swapPairContract.getToken0();
+        Hash160 token1Hash = swapPairContract.getToken1();
+
+        StorageContext ctx = CTX();
+        byte[] swapPairGasIndexKey = SWAP_PAIR_GAS_INDEX_KEY();
+        if (gasHash.equals(token0Hash)) {
+            Storage.put(ctx, swapPairGasIndexKey, 0);
+        } else if (gasHash.equals(token1Hash)) {
+            Storage.put(ctx, swapPairGasIndexKey, 1);
+        } else {
+            abort("GAS is not one of the tokens in 'swapPairHash'", "setSwapPairScriptHash");
+        }
+
+        Storage.put(ctx, SWAP_PAIR_HASH_KEY(), swapPairHash);
     }
     
     private static void validateHash160(Hash160 hash, String hashName) {
