@@ -50,20 +50,20 @@ public class CompoundingNeo {
     private static int FLOAT_MULTIPLIER() { return StringLiteralHelper.stringToInt("1000000000000000000"); }
     // To redeem bNEO to NEO, we need to send 100000 GAS per 1 NEO
     private static final int GAS_FOR_NEO() { return 100000; }
-    private static final int PERCENT() { return 100; }
+    private static final int BASIS_POINTS() { return 10000; }
 
     private static final int INITIAL_SUPPLY() { return 0; }
     // 1 week in milliseconds
     private static final int INITIAL_COMPOUND_PERIOD() { return 604800000; }
-    private static final int INITIAL_FEE_PERCENT() { return 5; }
+    private static final int INITIAL_FEE_BASIS_POINTS() { return 500; }
     // 1 million cNEO
     private static final int INITIAL_MAX_SUPPLY() { return StringLiteralHelper.stringToInt("100000000000000"); }
     // 1 GAS
     private static final int INITIAL_MAX_GAS_REWARD() { return 100000000; }
     // 10%
-    private static final int INITIAL_MAX_FEE_PERCENT() { return 10; }
-    // 10%
-    private static final int INITIAL_MAX_SLIPPAGE() { return 10; }
+    private static final int INITIAL_MAX_FEE_BASIS_POINTS() { return 1000; }
+    // 10% in basis points
+    private static final int INITIAL_MAX_SLIPPAGE_BASIS_POINTS() { return 1000; }
     // 5000 GAS
     private static final int INITIAL_MAX_SWAP_GAS() { return StringLiteralHelper.stringToInt("500000000000"); }
     private static final int DECIMALS() { return 8; }
@@ -80,15 +80,15 @@ public class CompoundingNeo {
     private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x07}; }
     private static final byte[] LAST_COMPOUNDED_KEY() { return new byte[]{0x08}; }
     private static final byte[] COMPOUND_PERIOD_KEY() { return new byte[]{0x09}; }
-    private static final byte[] FEE_PERCENT_KEY() { return new byte[]{0x0a}; }
+    private static final byte[] FEE_BASIS_POINTS_KEY() { return new byte[]{0x0a}; }
     private static final byte[] GAS_REWARD_KEY() { return new byte[]{0x0b}; }
 
     private static StorageMap BALANCE_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x0c}); }
 
     private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x0d}; }
     private static final byte[] MAX_GAS_REWARD_KEY() { return new byte[]{0x0e}; }
-    private static final byte[] MAX_FEE_PERCENT_KEY() { return new byte[]{0x0f}; }
-    private static final byte[] MAX_SLIPPAGE_KEY() { return new byte[]{0x10}; }
+    private static final byte[] MAX_FEE_BASIS_POINTS_KEY() { return new byte[]{0x0f}; }
+    private static final byte[] MAX_SLIPPAGE_BASIS_POINTS_KEY() { return new byte[]{0x10}; }
     private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x11}; }
     private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x12}; }
     private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
@@ -122,8 +122,8 @@ public class CompoundingNeo {
     private static Event1Arg<Integer> onConvertToBneo;
 
     // State Changes
-    @DisplayName("SetFeePercent")
-    private static Event1Arg<Integer> onSetFeePercent;
+    @DisplayName("SetFeeBasisPoints")
+    private static Event1Arg<Integer> onSetFeeBasisPoints;
 
     @DisplayName("SetGasReward")
     private static Event1Arg<Integer> onSetGasReward;
@@ -285,33 +285,33 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_COMPOUND_PERIOD() : storageVal;
     }
 
-    public static void setFeePercent(int feePercent) {
-        validateOwner("setFeePercent");
-        validatePositiveNumber(feePercent, "feePercent");
-        assert feePercent <= getMaxFeePercent();
+    public static void setFeeBasisPoints(int feeBasisPoints) {
+        validateOwner("setFeeBasisPoints");
+        validatePositiveNumber(feeBasisPoints, "feeBasisPoints");
+        assert feeBasisPoints <= getMaxFeeBasisPoints();
 
-        Storage.put(CTX(), FEE_PERCENT_KEY(), feePercent);
-        onSetFeePercent.fire(feePercent);
+        Storage.put(CTX(), FEE_BASIS_POINTS_KEY(), feeBasisPoints);
+        onSetFeeBasisPoints.fire(feeBasisPoints);
     }
 
     @Safe
-    public static int getFeePercent() {
-        final Integer storageVal = Storage.getInt(RTX(), FEE_PERCENT_KEY());
-        return storageVal == null ? INITIAL_FEE_PERCENT() : storageVal;
+    public static int getFeeBasisPoints() {
+        final Integer storageVal = Storage.getInt(RTX(), FEE_BASIS_POINTS_KEY());
+        return storageVal == null ? INITIAL_FEE_BASIS_POINTS() : storageVal;
     }
 
-    public static void setMaxSlippage(int maxSlippage) {
-        validateOwner("setMaxSlippage");
-        validatePositiveNumber(maxSlippage, "maxSlippage");
-        assert maxSlippage < 100;
+    public static void setMaxSlippageBasisPoints(int maxSlippageBasisPoints) {
+        validateOwner("setMaxSlippageBasisPoints");
+        validatePositiveNumber(maxSlippageBasisPoints, "maxSlippageBasisPoints");
+        assert maxSlippageBasisPoints < BASIS_POINTS();
 
-        Storage.put(CTX(), MAX_SLIPPAGE_KEY(), maxSlippage);
+        Storage.put(CTX(), MAX_SLIPPAGE_BASIS_POINTS_KEY(), maxSlippageBasisPoints);
     }
 
     @Safe
-    public static int getMaxSlippage() {
-        final Integer storageVal = Storage.getInt(RTX(), MAX_SLIPPAGE_KEY());
-        return storageVal == null ? INITIAL_MAX_SLIPPAGE() : storageVal;
+    public static int getMaxSlippageBasisPoints() {
+        final Integer storageVal = Storage.getInt(RTX(), MAX_SLIPPAGE_BASIS_POINTS_KEY());
+        return storageVal == null ? INITIAL_MAX_SLIPPAGE_BASIS_POINTS() : storageVal;
     }
 
     public static void setMaxSupply(int maxSupply) {
@@ -356,18 +356,18 @@ public class CompoundingNeo {
         return storageVal == null ? INITIAL_MAX_GAS_REWARD() : storageVal;
     }
 
-    public static void setMaxFeePercent(int maxFeePercent) {
-        validateOwner("setMaxFeePercent");
-        validatePositiveNumber(maxFeePercent, "maxFeePercent");
-        assert maxFeePercent < 100;
+    public static void setMaxFeeBasisPoints(int maxFeeBasisPoints) {
+        validateOwner("setMaxFeeBasisPoints");
+        validatePositiveNumber(maxFeeBasisPoints, "maxFeeBasisPoints");
+        assert maxFeeBasisPoints < 100;
 
-        Storage.put(CTX(), MAX_FEE_PERCENT_KEY(), maxFeePercent);
+        Storage.put(CTX(), MAX_FEE_BASIS_POINTS_KEY(), maxFeeBasisPoints);
     }
 
     @Safe
-    public static int getMaxFeePercent() {
-        final Integer storageVal = Storage.getInt(RTX(), MAX_FEE_PERCENT_KEY());
-        return storageVal == null ? INITIAL_MAX_FEE_PERCENT() : storageVal;
+    public static int getMaxFeeBasisPoints() {
+        final Integer storageVal = Storage.getInt(RTX(), MAX_FEE_BASIS_POINTS_KEY());
+        return storageVal == null ? INITIAL_MAX_FEE_BASIS_POINTS() : storageVal;
     }
 
     public static void setMaxSwapGas(int maxSwapGas) {
@@ -547,7 +547,7 @@ public class CompoundingNeo {
 
         int afterBalance = (int) Contract.call(gasContract.getHash(), BALANCE_OF(), CallFlags.ReadOnly, new Object[]{cneoHash});
         int gasQuantity = afterBalance - beforeBalance;
-        int treasuryCut = (gasQuantity * getFeePercent()) / PERCENT();
+        int treasuryCut = (gasQuantity * getFeeBasisPoints()) / BASIS_POINTS();
         int gasToSwap = gasQuantity - treasuryCut;
 
         // If gasToSwap is too large, it will be clipped and
@@ -875,9 +875,9 @@ public class CompoundingNeo {
         int gasReserves = reserves.get(gasIndex);
         int bneoReserves = reserves.get(1 - gasIndex);
         int bneoQuantity = (gasQuantity * bneoReserves) / gasReserves;
-        int percent = PERCENT();
+        int basisPoints = BASIS_POINTS();
 
-        return (bneoQuantity * (percent - getMaxSlippage())) / percent;
+        return (bneoQuantity * (basisPoints - getMaxSlippageBasisPoints())) / basisPoints;
     }
 
     private static void halveCompoundPeriod() {

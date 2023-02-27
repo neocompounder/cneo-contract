@@ -63,8 +63,8 @@ public class CompoundingNeoTest {
     private static final String GET_COMPOUND_PERIOD = "getCompoundPeriod";
     private static final String SET_COMPOUND_PERIOD = "setCompoundPeriod";
     private static final String GET_LAST_COMPOUNDED = "getLastCompounded";
-    private static final String GET_FEE_PERCENT = "getFeePercent";
-    private static final String SET_FEE_PERCENT = "setFeePercent";
+    private static final String GET_FEE_BASIS_POINTS = "getFeeBasisPoints";
+    private static final String SET_FEE_BASIS_POINTS = "setFeeBasisPoints";
     private static final String GET_MAX_SUPPLY = "getMaxSupply";
     private static final String SET_MAX_SUPPLY = "setMaxSupply";
     private static final String GET_GAS_REWARD = "getGasReward";
@@ -417,39 +417,39 @@ public class CompoundingNeoTest {
 
     @Order(9)
     @Test
-    public void invokeFeePercent() throws Throwable {
-        NeoInvokeFunction result = cNeo.callInvokeFunction(GET_FEE_PERCENT);
-        assertEquals(new BigInteger("5"), result.getInvocationResult().getStack().get(0).getInteger());
+    public void invokeFeeBasisPoints() throws Throwable {
+        NeoInvokeFunction result = cNeo.callInvokeFunction(GET_FEE_BASIS_POINTS);
+        assertEquals(new BigInteger("500"), result.getInvocationResult().getStack().get(0).getInteger());
 
         Exception exception = assertThrows(TransactionConfigurationException.class, () -> {
-            setFeePercent(other, new BigInteger("10"));
+            setFeeBasisPoints(other, new BigInteger("1000"));
         });
         String actualMessage = exception.getMessage();
         assertEquals(ABORT_MESSAGE, actualMessage);
 
         exception = assertThrows(TransactionConfigurationException.class, () -> {
-            setFeePercent(owner, new BigInteger("101"));
+            setFeeBasisPoints(owner, new BigInteger("10100"));
         });
         actualMessage = exception.getMessage();
         assertEquals(ASSERT_MESSAGE, actualMessage);
 
         exception = assertThrows(TransactionConfigurationException.class, () -> {
-            setFeePercent(owner, new BigInteger("-1"));
+            setFeeBasisPoints(owner, new BigInteger("-100"));
         });
         actualMessage = exception.getMessage();
         assertEquals(ASSERT_MESSAGE, actualMessage);
 
-        Hash256 txHash = setFeePercent(owner, new BigInteger("10"));
+        Hash256 txHash = setFeeBasisPoints(owner, new BigInteger("1000"));
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
         Notification n0 = execution.getNotifications().get(0);
-        assertEquals("SetFeePercent", n0.getEventName());
+        assertEquals("SetFeeBasisPoints", n0.getEventName());
         List<StackItem> stackItems = n0.getState().getList();
-        assertEquals(new BigInteger("10"), stackItems.get(0).getInteger());
+        assertEquals(new BigInteger("1000"), stackItems.get(0).getInteger());
 
-        result = cNeo.callInvokeFunction(GET_FEE_PERCENT);
-        assertEquals(new BigInteger("10"), result.getInvocationResult().getStack().get(0).getInteger());
+        result = cNeo.callInvokeFunction(GET_FEE_BASIS_POINTS);
+        assertEquals(new BigInteger("1000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
     @Order(10)
@@ -1053,8 +1053,8 @@ public class CompoundingNeoTest {
         return invoke(cNeo, caller, SET_COMPOUND_PERIOD, integer(compoundPeriod)).txHash;
     }
 
-    private static Hash256 setFeePercent(Account caller, BigInteger feePercent) throws Throwable {
-        return invoke(cNeo, caller, SET_FEE_PERCENT, integer(feePercent)).txHash;
+    private static Hash256 setFeeBasisPoints(Account caller, BigInteger feePercent) throws Throwable {
+        return invoke(cNeo, caller, SET_FEE_BASIS_POINTS, integer(feePercent)).txHash;
     }
 
     private static Hash256 setMaxSupply(Account caller, BigInteger maxSupply) throws Throwable {
