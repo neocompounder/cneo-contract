@@ -1,5 +1,6 @@
 package com.neocompounder.cneo;
 
+import com.neocompounder.cneo.interfaces.CompoundingNeoVoterContract;
 import com.neocompounder.cneo.interfaces.FlamingoSwapPairContract;
 import com.neocompounder.cneo.interfaces.FlamingoSwapRouterContract;
 
@@ -36,7 +37,6 @@ import io.neow3j.devpack.events.Event2Args;
 import io.neow3j.devpack.events.Event3Args;
 import io.neow3j.devpack.events.Event4Args;
 
-// Change these for each token; substitution not possible
 @DisplayName("CompoundingNeo")
 @ManifestExtra(key = "Author", value = "Lyrebird Finance")
 @ManifestExtra(key = "Email", value = "hello@lyrebird.finance")
@@ -78,6 +78,7 @@ public class CompoundingNeo {
     private static final byte[] OWNER_KEY() { return new byte[]{0x00}; }
     private static final byte[] SUPPLY_KEY() { return new byte[]{0x01}; }
     private static final byte[] MAX_SUPPLY_KEY() { return new byte[]{0x03}; }
+    private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x04}; }
     private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x05}; }
     private static final byte[] SWAP_PAIR_HASH_KEY() { return new byte[]{0x06}; }
     private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x07}; }
@@ -87,18 +88,13 @@ public class CompoundingNeo {
     private static final byte[] GAS_REWARD_KEY() { return new byte[]{0x0b}; }
 
     private static StorageMap BALANCE_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x0c}); }
-    private static StorageMap BNEO_AGENT_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x0d}); }
 
     private static final byte[] MAX_GAS_REWARD_KEY() { return new byte[]{0x0e}; }
     private static final byte[] MAX_FEE_PERCENT_KEY() { return new byte[]{0x0f}; }
     private static final byte[] MAX_SLIPPAGE_KEY() { return new byte[]{0x10}; }
-    private static final byte[] GAS_RESERVES_KEY() { return new byte[]{0x11}; }
+    private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x11}; }
     private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x12}; }
     private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
-    private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x14}; }
-
-    // Hex strings
-    private static final ByteString VOTE() { return new ByteString("vote"); }
 
     // Events
     @DisplayName("Mint")
@@ -158,9 +154,6 @@ public class CompoundingNeo {
 
     @DisplayName("SetBneoScriptHash")
     private static Event1Arg<Hash160> onSetBneoScriptHash;
-
-    @DisplayName("SetBurgerAgentScriptHash")
-    private static Event1Arg<Hash160> onSetBurgerAgentScriptHash;
     
     @Struct
     static class NEP17Payload {
@@ -199,17 +192,6 @@ public class CompoundingNeo {
 
         (new ContractManagement()).destroy();
     }
-    
-    @OnVerification
-    @Safe
-    public static boolean verify() {
-        if (Runtime.checkWitness(getOwner())) {
-            Transaction tx = (Transaction) Runtime.getScriptContainer();
-            ByteString script = tx.script;
-            return script.length() == 71 && script.range(40, 4).equals(VOTE());
-        }
-        return false;
-    }
 
     // Contract Methods
     public static void setOwner(Hash160 owner) {
@@ -225,7 +207,20 @@ public class CompoundingNeo {
     public static Hash160 getOwner() {
         return Storage.getHash160(RTX(), OWNER_KEY());
     }
-    
+
+    public static void setVoterScriptHash(Hash160 voterHash) {
+        validateOwner("setVoterScriptHash");
+        validateContract(voterHash, "voterHash");
+
+        Storage.put(CTX(), VOTER_HASH_KEY(), voterHash);
+    }
+
+    @Safe
+    public static Hash160 getVoterScriptHash() {
+        final Hash160 storageVal = Storage.getHash160(RTX(), VOTER_HASH_KEY());
+        return storageVal == null ? Hash160.zero() : storageVal;
+    }
+
     public static void setBneoScriptHash(Hash160 bneoHash) {
         validateOwner("setBneoScriptHash");
         validateContract(bneoHash, "bneoHash");
@@ -287,21 +282,6 @@ public class CompoundingNeo {
     public static Hash160 getSwapRouterScriptHash() {
         final Hash160 storageVal = Storage.getHash160(RTX(), SWAP_ROUTER_HASH_KEY());
         return storageVal == null ? Hash160.zero() : storageVal;
-    }
-
-    public static void setBurgerAgentScriptHash(Hash160 burgerAgentHash) {
-        validateOwner("setBurgerAgentScriptHash");
-        validateContract(burgerAgentHash, "burgerAgentHash");
-
-        BNEO_AGENT_MAP().put(burgerAgentHash.toByteArray(), 1);
-        onSetBurgerAgentScriptHash.fire(burgerAgentHash);
-    }
-
-    public static void unsetBurgerAgentScriptHash(Hash160 burgerAgentHash) {
-        validateOwner("unsetBurgerAgentScriptHash");
-        validateHash160(burgerAgentHash, "burgerAgentHash");
-
-        BNEO_AGENT_MAP().delete(burgerAgentHash.toByteArray());
     }
 
     @Safe
@@ -453,8 +433,8 @@ public class CompoundingNeo {
     @Safe
     public static int getNeoReserves() {
         NeoToken neoContract = new NeoToken();
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        return neoContract.balanceOf(cneoHash);
+        Hash160 voterHash = getVoterScriptHash();
+        return neoContract.balanceOf(voterHash);
     }
 
     @Safe
@@ -464,7 +444,9 @@ public class CompoundingNeo {
 
     @Safe
     public static int getGasReserves() {
-        return Storage.getIntOrZero(RTX(), GAS_RESERVES_KEY());
+        GasToken gasContract = new GasToken();
+        Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        return gasContract.balanceOf(cneoHash);
     }
 
     /**
@@ -564,6 +546,7 @@ public class CompoundingNeo {
 
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
+        Hash160 voterHash = getVoterScriptHash();
         FungibleToken bneoContract = new FungibleToken(bneoHash);
         NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
@@ -572,8 +555,8 @@ public class CompoundingNeo {
         // includes GAS accrued from NEO transfers in between calls of compound()
         int beforeBalance = getGasReserves();
 
-        // Send 0 NEO to self to claim GAS
-        boolean transferSuccess = neoContract.transfer(cneoHash, cneoHash, 0, null);
+        // Claim GAS from Voter
+        boolean transferSuccess = neoContract.transfer(cneoHash, voterHash, 0, null);
         assert transferSuccess;
 
         // Send 0 bNEO to the bNEO contract to receive GAS
@@ -596,9 +579,6 @@ public class CompoundingNeo {
         }
         int bneoQuantity = clippedGasToSwap > 0 ? swapGasForBneo(clippedGasToSwap) : 0;
 
-        // GAS accounting
-        addToGasReserves(treasuryCut);
-
         // Reward the invoker for a job well done
         transferSuccess = transferGas(account, getGasReward());
         assert transferSuccess;
@@ -619,18 +599,8 @@ public class CompoundingNeo {
         assert gasQuantity <= getGasReserves();
         assert gasQuantity <= getMaxSwapGas();
 
-        deductFromGasReserves(gasQuantity);
         int bneoQuantity = gasQuantity > 0 ? swapGasForBneo(gasQuantity) : 0;
         onCompoundReserves.fire(gasQuantity, bneoQuantity);
-    }
-
-    public static void vote(ECPoint candidate) {
-        validateOwner("vote");
-        validateECPoint(candidate, "vote");
-
-        NeoToken neoContract = new NeoToken();
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        neoContract.vote(cneoHash, candidate);
     }
 
     public static void convertToBneo(int neoQuantity) {
@@ -645,28 +615,21 @@ public class CompoundingNeo {
         validateOwner("convertToNeo");
         validatePositiveNumber(neoQuantity, "neoQuantity");
 
-        NeoToken neoContract = new NeoToken();
-        GasToken gasContract = new GasToken();
-        Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        String balanceOf = BALANCE_OF();
+        Hash160 voterHash = getVoterScriptHash();
+        GasToken gasContract = new GasToken();
+        FungibleToken bneoContract = new FungibleToken(getBneoScriptHash());
 
         int bneoQuantity = neoQuantity * getBneoMultiplier();
-
-        assert bneoQuantity <= getBneoReserves();
-
         int gasQuantity = neoQuantity * GAS_FOR_NEO();
-        int gasBalance = (int) Contract.call(gasContract.getHash(), balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
-
+        int gasBalance = gasContract.balanceOf(cneoHash);
         assert gasQuantity <= gasBalance;
 
-        int beforeBalance = (int) Contract.call(neoContract.getHash(), balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
-        boolean transferSuccess = transferGas(bneoHash, gasQuantity);
+        boolean transferSuccess = gasContract.transfer(cneoHash, voterHash, gasQuantity, null);
         assert transferSuccess;
 
-        int afterBalance = (int) Contract.call(neoContract.getHash(), balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
-        int actualNeoQuantity = afterBalance - beforeBalance;
-        assert actualNeoQuantity == neoQuantity;
+        transferSuccess = bneoContract.transfer(cneoHash, voterHash, bneoQuantity, null);
+        assert transferSuccess;
 
         onConvertToNeo.fire(neoQuantity);
     }
@@ -676,6 +639,7 @@ public class CompoundingNeo {
         Hash160 tokenHash = Runtime.getCallingScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         Hash160 bneoHash = getBneoScriptHash();
+        Hash160 voterHash = getVoterScriptHash();
         Hash160 swapPairHash = getSwapPairScriptHash();
         NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
@@ -695,20 +659,9 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 1: Called by self
-        else if (from.equals(cneoHash)) {
-            // 1a) NEO transfer (GAS claim) - execution continues in compound
-            if (tokenHash.equals(neoContract.getHash())) {
-                return;
-            }
-            else {
-                abort("NEP17Transfer from self not NEO", "onNEP17Payment");
-            }
-        }
-
-        // Case 2: Called by NeoBurger contract
+        // Case 1: Called by NeoBurger contract
         else if (from.equals(bneoHash)) {
-            // 2a) bNEO GAS claim - execution continues in compound
+            // 1a) bNEO GAS claim - execution continues in compound
             if (tokenHash.equals(gasContract.getHash())) {
                 return;
             }
@@ -717,9 +670,9 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 3: Called by the GAS-bNEO swap pair
+        // Case 2: Called by the GAS-bNEO swap pair
         else if (from.equals(swapPairHash)) {
-            // 3a) bNEO swap - execution continues in swapGasForBneo
+            // 2a) bNEO swap - execution continues in swapGasForBneo
             if (tokenHash.equals(bneoHash)) {
                 return;
             }
@@ -728,10 +681,14 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 4: Called by a bNEO agent
-        else if (isBurgerAgent(from)) {
-            // 4a) bNEO redemption - execution continues in convertToBneo
-            if (tokenHash.equals(neoContract.getHash())) {
+        // Case 3: Called by the Voter contract
+        else if (from.equals(voterHash)) {
+            // 3a) GAS claim - execution continues in compound
+            if (tokenHash.equals(gasContract.getHash())) {
+                return;
+            }
+            // 3b) bNEO redemption - execution continues in convertToBneo
+            else if (tokenHash.equals(bneoHash)) {
                 return;
             }
             else {
@@ -739,14 +696,13 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 5: non-null payload - must satisfy (data instanceof List) && (data[0] instanceof String)
+        // Case 4: non-null payload - must satisfy (data instanceof List) && (data[0] instanceof String)
         else if (data != null) {
             NEP17Payload params = (NEP17Payload) data;
             String action = params.action;
 
-            // 5a) GAS top-up for continued operations
+            // 4a) GAS top-up for continued operations
             if (tokenHash.equals(gasContract.getHash()) && ACTION_TOP_UP_GAS().equals(action)) {
-                addToGasReserves(amount);
                 onTopUpGas.fire(from, amount);
                 return;
             }
@@ -755,17 +711,17 @@ public class CompoundingNeo {
             }
         }
 
-        // Case 6: null payload, not from earlier cases
+        // Case 5: null payload, not from earlier cases
         else {
-            // 6a) Handle incoming NEO: swap for bNEO and mint cNEO
+            // 5a) Handle incoming NEO: swap for bNEO and mint cNEO
             if (tokenHash.equals(neoContract.getHash())) {
                 handleNeoDeposit(from, amount);
             }
-            // 6b) Handle incoming bNEO: mint cNEO
+            // 5b) Handle incoming bNEO: mint cNEO
             else if (tokenHash.equals(bneoHash)) {
                 handleBneoDeposit(from, amount);
             }
-            // 6c) Handle incoming cNEO: withdraw bNEO
+            // 5c) Handle incoming cNEO: withdraw bNEO
             else if (tokenHash.equals(cneoHash)) {
                 handleBneoWithdraw(from, amount);
             }
@@ -783,23 +739,10 @@ public class CompoundingNeo {
      * @param neoQuantity the quantity of NEO desired
      */
     private static void convertToBneoInternal(int neoQuantity) {
-        Hash160 bneoHash = getBneoScriptHash();
-        Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        NeoToken neoContract = new NeoToken();
-        String balanceOf = BALANCE_OF();
-
-        int bneoQuantity = neoQuantity * getBneoMultiplier();
+        CompoundingNeoVoterContract voterContract = new CompoundingNeoVoterContract(getVoterScriptHash());
 
         assert neoQuantity <= getNeoReserves();
-
-        // Swap NEO for bNEO
-        int beforeBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
-        boolean transferSuccess = neoContract.transfer(cneoHash, bneoHash, neoQuantity, null);
-        assert transferSuccess;
-
-        int afterBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
-        int actualBneoQuantity = afterBalance - beforeBalance;
-        assert bneoQuantity == actualBneoQuantity;
+        voterContract.withdrawBneo(neoQuantity);
     }
 
     /**
@@ -885,19 +828,9 @@ public class CompoundingNeo {
         Storage.put(CTX(), LAST_COMPOUNDED_KEY(), lastCompounded);
     }
 
-    private static boolean isBurgerAgent(Hash160 burgerAgentHash) {
-        validateHash160(burgerAgentHash, "burgerAgentHash");
-
-        final Boolean storageVal = BNEO_AGENT_MAP().getBoolean(burgerAgentHash.toByteArray());
-        return storageVal == null ? false : storageVal;
-    }
-
-    // Helper to ensure that we update gas reserves correctly
     private static boolean transferGas(Hash160 to, int quantity) {
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         GasToken gasContract = new GasToken();
-
-        deductFromGasReserves(quantity);
         return gasContract.transfer(cneoHash, to, quantity, null);
     }
 
@@ -1037,14 +970,6 @@ public class CompoundingNeo {
         addToBalance(key, -value);
     }
 
-    private static void addToGasReserves(int value) {
-        Storage.put(CTX(), GAS_RESERVES_KEY(), getGasReserves() + value);
-    }
-
-    private static void deductFromGasReserves(int value) {
-        addToGasReserves(-value);
-    }
-
     private static int getApprovedSwapQuantity() {
         return Storage.getIntOrZero(RTX(), APPROVED_SWAP_QUANTITY_KEY());
     }
@@ -1110,12 +1035,6 @@ public class CompoundingNeo {
         // String message = "The parameter '" + hashName + "' must be a contract hash";
         validateHash160(hash, hashName);
         assert (new ContractManagement()).getContract(hash) != null;
-    }
-
-    private static void validateECPoint(ECPoint ecPoint, String hashName) {
-        // Keeping this here so we can use it later if asserts later support messages
-        // String message = "The parameter '" + hashName + "' must be a 33-byte address";
-        assert ECPoint.isValid(ecPoint);
     }
 
     private static void validatePositiveNumber(int number, String numberName) {
