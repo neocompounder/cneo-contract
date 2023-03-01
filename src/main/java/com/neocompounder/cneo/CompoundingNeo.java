@@ -528,17 +528,16 @@ public class CompoundingNeo {
 
         Hash160 bneoHash = getBneoScriptHash();
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
-        Hash160 voterHash = getVoterScriptHash();
         FungibleToken bneoContract = new FungibleToken(bneoHash);
-        NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
+        CompoundingNeoVoterContract voterContract = new CompoundingNeoVoterContract(getVoterScriptHash());
 
         // GAS reserves <= GAS balance always so comparing against this quantity
         // includes GAS accrued from NEO transfers in between calls of compound()
         int beforeBalance = getGasReserves();
 
         // Claim GAS from Voter
-        boolean transferSuccess = neoContract.transfer(cneoHash, voterHash, 0, null);
+        boolean transferSuccess = voterContract.claimGas();
         assert transferSuccess;
 
         // Send 0 bNEO to the bNEO contract to receive GAS

@@ -12,5 +12,6 @@ public class CompoundingNeoVoterContract extends ContractInterface {
         super(contractHash);
     }
 
+    public native boolean claimGas();
     public native boolean withdrawBneo(int neoQuantity);
 }

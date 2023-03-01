@@ -141,32 +141,38 @@ public class CompoundingNeoVoter {
         NeoToken neoContract = new NeoToken();
         GasToken gasContract = new GasToken();
 
-        if (from != null && from.equals(cneoHash)) {
-            // Case 0: cNEO GAS claim - send all GAS to cNEO
-            if (tokenHash.equals(neoContract.getHash())) {
-                int gasBalance = gasContract.balanceOf(voterHash);
-                gasContract.transfer(voterHash, cneoHash, gasBalance, null);
-            }
-            // Case 1: cNEO convertToNeo - convert incoming bNEO to NEO
-            else if (tokenHash.equals(bneoHash)) {
-                int bneoQuantity = amount;
-                int neoQuantity = bneoQuantity / getBneoMultiplier();
+        // cNEO convertToNeo - convert incoming bNEO to NEO
+        if (from != null && from.equals(cneoHash) && tokenHash.equals(bneoHash)) {
+            int bneoQuantity = amount;
+            int neoQuantity = bneoQuantity / getBneoMultiplier();
 
-                // Ensure we have enough GAS for the bNEO -> NEO conversion
-                int gasQuantity = neoQuantity * GAS_FOR_NEO();
-                int gasBalance = gasContract.balanceOf(voterHash);
-                assert gasQuantity <= gasBalance;
+            // Ensure we have enough GAS for the bNEO -> NEO conversion
+            int gasQuantity = neoQuantity * GAS_FOR_NEO();
+            int gasBalance = gasContract.balanceOf(voterHash);
+            assert gasQuantity <= gasBalance;
 
-                // Send the GAS fee for the bNEO -> NEO conversion
-                int beforeBalance = neoContract.balanceOf(voterHash);
-                boolean transferSuccess = gasContract.transfer(voterHash, bneoHash, gasQuantity, null);
-                assert transferSuccess;
+            // Send the GAS fee for the bNEO -> NEO conversion
+            int beforeBalance = neoContract.balanceOf(voterHash);
+            boolean transferSuccess = gasContract.transfer(voterHash, bneoHash, gasQuantity, null);
+            assert transferSuccess;
 
-                int afterBalance = neoContract.balanceOf(voterHash);
-                int actualNeoQuantity = afterBalance - beforeBalance;
-                assert actualNeoQuantity == neoQuantity;
-            }
+            int afterBalance = neoContract.balanceOf(voterHash);
+            int actualNeoQuantity = afterBalance - beforeBalance;
+            assert actualNeoQuantity == neoQuantity;
         }
+    }
+
+    public static boolean claimGas() {
+        Hash160 voterHash = Runtime.getExecutingScriptHash();
+        Hash160 cneoHash = getCneoScriptHash();
+        NeoToken neoContract = new NeoToken();
+        GasToken gasContract = new GasToken();
+
+        validateAccount(cneoHash, "claimGas");
+
+        assert neoContract.transfer(voterHash, voterHash, 0, null);
+        int gasBalance = gasContract.balanceOf(voterHash);
+        return gasContract.transfer(voterHash, cneoHash, gasBalance, null);
     }
 
     /**

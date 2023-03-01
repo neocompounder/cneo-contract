@@ -893,15 +893,15 @@ public class CompoundingNeoTest {
         Hash256 txHash = invokeResult.txHash;
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
-        Notification n1 = execution.getNotifications().get(1);
-        assertEquals("Transfer", n1.getEventName());
-        assertEquals(gasToken.getScriptHash(), n1.getContract());
-        List<StackItem> stackItems = n1.getState().getList();
+        Notification n2 = execution.getNotifications().get(2);
+        assertEquals("Transfer", n2.getEventName());
+        assertEquals(gasToken.getScriptHash(), n2.getContract());
+        List<StackItem> stackItems = n2.getState().getList();
         assertEquals(cNeo.getScriptHash(), new Hash160(ArrayUtils.reverseArray(stackItems.get(1).getByteArray())));
-        assertEquals(new BigInteger("75"), stackItems.get(2).getInteger());
+        assertEquals(new BigInteger("51585"), stackItems.get(2).getInteger());
         
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
-        assertEquals(new BigInteger("10890003830"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10890050189"), result.getInvocationResult().getStack().get(0).getInteger());
 
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
                 integer(new BigInteger("1000000000")), any(null));
