@@ -1121,18 +1121,8 @@ public class CompoundingNeoTest {
         }
     }
 
-    private static InvokeResult invokeVerify(SmartContract token, Account caller, String method, ContractParameter... params) throws Throwable {
-        Transaction tx = token.invokeFunction(method, params)
-                .signers(AccountSigner.calledByEntry(caller), ContractSigner.global(voter.getScriptHash()))
-                .sign();
-        Hash256 txHash = tx
-                .send().getSendRawTransaction().getHash();
-        Await.waitUntilTransactionIsExecuted(txHash, neow3j);
-        return new InvokeResult(tx, txHash);
-    }
-
     private static InvokeResult vote(Account caller, ECPublicKey candidate) throws Throwable {
-        return invokeVerify(voter, caller, VOTE, publicKey(candidate));
+        return invoke(voter, caller, VOTE, publicKey(candidate));
     }
 
     private static InvokeResult compound(Account caller) throws Throwable {

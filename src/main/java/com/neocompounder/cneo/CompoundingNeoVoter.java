@@ -72,16 +72,6 @@ public class CompoundingNeoVoter {
         (new ContractManagement()).destroy();
     }
 
-    @OnVerification
-    public static boolean verify() {
-        if (Runtime.checkWitness(getOwner())) {
-            Transaction tx = (Transaction) Runtime.getScriptContainer();
-            ByteString script = tx.script;
-            return script.length() == 71 && script.range(40, 4).equals(VOTE());
-        }
-        return false;
-    }
-
     // Contract Methods
     public static void setOwner(Hash160 owner) throws Exception {
         validateOwner("setOwner");
