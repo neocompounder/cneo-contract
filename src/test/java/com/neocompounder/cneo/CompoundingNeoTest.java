@@ -71,6 +71,8 @@ public class CompoundingNeoTest {
     private static final String SET_GAS_REWARD = "setGasReward";
     private static final String GET_MAX_SWAP_GAS = "getMaxSwapGas";
     private static final String SET_MAX_SWAP_GAS = "setMaxSwapGas";
+    private static final String GET_EXIT_FEE = "getExitFee";
+    private static final String SET_EXIT_FEE = "setExitFee";
     private static final String SET_BNEO_SCRIPT_HASH = "setBneoScriptHash";
     private static final String SET_CNEO_SCRIPT_HASH = "setCneoScriptHash";
     private static final String SET_VOTER_SCRIPT_HASH = "setVoterScriptHash";
@@ -241,18 +243,18 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
-        assertEquals(new BigInteger("99910000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99909950000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("90050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("90050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_NEO_RESERVES);
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("90050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_RESERVE_RATIO, List.of());
-        assertEquals(new BigInteger("1000000000000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("1000555555555555555"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
         assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
@@ -520,10 +522,42 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
 
         setMaxSwapGas(owner, new BigInteger("500000000000"));
-
     }
 
     @Order(12)
+    @Test
+    public void invokeExitFee() throws Throwable {
+        NeoInvokeFunction result = cNeo.callInvokeFunction(GET_EXIT_FEE);
+        assertEquals(new BigInteger("50"), result.getInvocationResult().getStack().get(0).getInteger());
+
+        Exception exception = assertThrows(TransactionConfigurationException.class, () -> {
+            setExitFee(other, new BigInteger("10"));
+        });
+        String actualMessage = exception.getMessage();
+        assertEquals(ABORT_MESSAGE, actualMessage);
+
+        exception = assertThrows(TransactionConfigurationException.class, () -> {
+            setExitFee(owner, new BigInteger("-1"));
+        });
+        actualMessage = exception.getMessage();
+        assertEquals(ASSERT_MESSAGE, actualMessage);
+
+        Hash256 txHash = setExitFee(owner, new BigInteger("100"));
+
+        NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
+                .getApplicationLog().getExecutions().get(0);
+        Notification n0 = execution.getNotifications().get(0);
+        assertEquals("SetExitFee", n0.getEventName());
+        List<StackItem> stackItems = n0.getState().getList();
+        assertEquals(new BigInteger("100"), stackItems.get(0).getInteger());
+
+        result = cNeo.callInvokeFunction(GET_EXIT_FEE);
+        assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
+
+        setExitFee(owner, new BigInteger("50"));
+    }
+
+    @Order(13)
     @Test
     public void invokeCompound() throws Throwable {
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
@@ -537,9 +571,9 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("1000000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("90050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("90000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("90050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
         assertEquals(new BigInteger("10000000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_LAST_COMPOUNDED);
@@ -575,11 +609,11 @@ public class CompoundingNeoTest {
         assertEquals(true, result.getInvocationResult().getStack().get(0).getInteger().compareTo(new BigInteger("0")) > 0);
 
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("91000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("91050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("91000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("91050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_RESERVE_RATIO, List.of());
-        assertEquals(new BigInteger("1011111111111111111"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("1011666666666666666"), result.getInvocationResult().getStack().get(0).getInteger());
 
         // We started with 100 GAS
         // Compounding claimed 10 GAS, so we kept 10% of 10 == 1 GAS in fees
@@ -595,7 +629,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(13)
+    @Order(14)
     @Test
     public void invokeMintWithNeo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
@@ -614,27 +648,27 @@ public class CompoundingNeoTest {
         assertEquals("Mint", n4.getEventName());
         List<StackItem> stackItems = n4.getState().getList();
         assertEquals(owner.getAddress(), stackItems.get(0).getAddress());
-        assertEquals(new BigInteger("9890109890"), stackItems.get(1).getInteger());
+        assertEquals(new BigInteger("9884678747"), stackItems.get(1).getInteger());
 
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(bNeo.getScriptHash())));
         assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("101000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("101050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("101000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("101050000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
-        // We originally had 90000000000 cNEO backed by 91000000000 bNEO
-        // New cNEO is issued at 90000000000 / 91000000000 per bNEO
-        // Thus, 100 NEO == 10000000000 bNEO == 10000000000 * 90 / 91 == 9890109890 cNEO
+        // We originally had 90000000000 cNEO backed by 91050000000 bNEO
+        // New cNEO is issued at 90000000000 / 91050000000 per bNEO
+        // Thus, 100 NEO == 10000000000 bNEO == 10000000000 * 9000 / 9105 == 9884678747 cNEO
         result = cNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
-        assertEquals(new BigInteger("89890109890"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("89884678747"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
-        assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99884678747"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(14)
+    @Order(15)
     @Test
     public void invokeWithdrawGas() throws Throwable {
         NeoInvokeFunction result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
@@ -661,7 +695,7 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("10090000000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(15)
+    @Order(16)
     @Test
     public void invokeMaxSupply() throws Throwable {
         Hash256 txHash = transfer(gasToken, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
@@ -683,20 +717,20 @@ public class CompoundingNeoTest {
         String actualMessage = exception.getMessage();
         assertEquals(ABORT_MESSAGE, actualMessage);
 
-        txHash = setMaxSupply(owner, new BigInteger("99890109890"));
+        txHash = setMaxSupply(owner, new BigInteger("99884678747"));
 
         execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
         Notification n0 = execution.getNotifications().get(0);
         assertEquals("SetMaxSupply", n0.getEventName());
         stackItems = n0.getState().getList();
-        assertEquals(new BigInteger("99890109890"), stackItems.get(0).getInteger());
+        assertEquals(new BigInteger("99884678747"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_MAX_SUPPLY);
-        assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99884678747"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
-        assertEquals(new BigInteger("99890109890"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99884678747"), result.getInvocationResult().getStack().get(0).getInteger());
 
         // Cannot mint any more cNEO since we hit the max supply
         exception = assertThrows(TransactionConfigurationException.class, () -> {
@@ -712,19 +746,19 @@ public class CompoundingNeoTest {
                 integer(new BigInteger("10000000000")), any(null));
 
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
-        assertEquals(new BigInteger("109780219780"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("109769357494"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(16)
+    @Order(17)
     @Test
     public void invokeCompoundReserves() throws Throwable {
         transfer(bNeo, owner, hash160(owner.getScriptHash()), hash160(swapRouter.getScriptHash()),
                 integer(new BigInteger("1000000000")), any(null));
 
         NeoInvokeFunction result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("111000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("111050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("111000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("111050000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         // Cannot compound more than maxSwapGas
         setMaxSwapGas(owner, new BigInteger("100000000000"));
@@ -758,20 +792,20 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("1000000000"), stackItems.get(1).getInteger());
 
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(17)
+    @Order(18)
     @Test
     public void invokeConvertToNeo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_NEO_RESERVES);
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
@@ -800,24 +834,24 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("100"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("102000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("102050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("102000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("102050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(voter.getScriptHash())));
         assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(18)
+    @Order(19)
     @Test
     public void invokeConvertToBneo() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("102000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("102050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("102000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("102050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(voter.getScriptHash())));
         assertEquals(new BigInteger("100"), result.getInvocationResult().getStack().get(0).getInteger());
 
@@ -844,16 +878,16 @@ public class CompoundingNeoTest {
         assertEquals(new BigInteger("90"), stackItems.get(0).getInteger());
 
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES);
-        assertEquals(new BigInteger("111000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("111050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("111000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("111050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(voter.getScriptHash())));
         assertEquals(new BigInteger("10"), result.getInvocationResult().getStack().get(0).getInteger());
     }
 
-    @Order(19)
+    @Order(20)
     @Test
     public void invokeVote() throws Throwable {
         transfer(neoToken, owner, hash160(owner.getScriptHash()), hash160(bNeo.getScriptHash()),
@@ -881,7 +915,7 @@ public class CompoundingNeoTest {
         result = gasToken.callInvokeFunction(BALANCE_OF, List.of(hash160(swapRouter.getScriptHash())));
         assertEquals(new BigInteger("10800000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES);
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
         convertToNeo(owner, new BigInteger("1000"));
 
@@ -907,28 +941,28 @@ public class CompoundingNeoTest {
                 integer(new BigInteger("1000000000")), any(null));
     }
 
-    @Order(20)
+    @Order(21)
     @Test
     public void invokeMixedBurn() throws Throwable {
         NeoInvokeFunction result = cNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
-        assertEquals(new BigInteger("99780219780"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("99769357494"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(voter.getScriptHash())));
         assertEquals(new BigInteger("1010"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_NEO_RESERVES, List.of());
         assertEquals(new BigInteger("1010"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("11000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("11050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES, List.of());
-        assertEquals(new BigInteger("11000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("11050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES, List.of());
-        assertEquals(new BigInteger("112000000000"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("112050000000"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
-        assertEquals(new BigInteger("109780219780"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("109769357494"), result.getInvocationResult().getStack().get(0).getInteger());
 
         // Burn by transferring cNEO
         Hash256 txHash = transfer(cNeo, owner, hash160(owner.getScriptHash()), hash160(cNeo.getScriptHash()),
-                integer(new BigInteger("99780219780")), any(null));
+                integer(new BigInteger("99769357494")), any(null));
 
         NeoApplicationLog.Execution execution = neow3j.getApplicationLog(txHash).send()
                 .getApplicationLog().getExecutions().get(0);
@@ -936,22 +970,22 @@ public class CompoundingNeoTest {
         assertEquals("Burn", n2.getEventName());
         List<StackItem> stackItems = n2.getState().getList();
         assertEquals(cNeo.getScriptHash(), new Hash160(ArrayUtils.reverseArray(stackItems.get(0).getByteArray())));
-        assertEquals(new BigInteger("99780219780"), stackItems.get(1).getInteger());
+        assertEquals(new BigInteger("99769357494"), stackItems.get(1).getInteger());
 
 
         result = cNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(owner.getScriptHash())));
         assertEquals(new BigInteger("0"), result.getInvocationResult().getStack().get(0).getInteger());
 
         result = neoToken.callInvokeFunction(BALANCE_OF, List.of(hash160(voter.getScriptHash())));
-        assertEquals(new BigInteger("102"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("107"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_NEO_RESERVES, List.of());
-        assertEquals(new BigInteger("102"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("107"), result.getInvocationResult().getStack().get(0).getInteger());
         result = bNeo.callInvokeFunction(BALANCE_OF, List.of(hash160(cNeo.getScriptHash())));
-        assertEquals(new BigInteger("2202203"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("16977939"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_BNEO_RESERVES, List.of());
-        assertEquals(new BigInteger("2202203"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("16977939"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(GET_TOTAL_RESERVES, List.of());
-        assertEquals(new BigInteger("10202202203"), result.getInvocationResult().getStack().get(0).getInteger());
+        assertEquals(new BigInteger("10716977939"), result.getInvocationResult().getStack().get(0).getInteger());
         result = cNeo.callInvokeFunction(TOTAL_SUPPLY);
         assertEquals(new BigInteger("10000000000"), result.getInvocationResult().getStack().get(0).getInteger());
 
@@ -1067,6 +1101,10 @@ public class CompoundingNeoTest {
 
     private static Hash256 setMaxSwapGas(Account caller, BigInteger maxSwapGas) throws Throwable {
         return invoke(cNeo, caller, SET_MAX_SWAP_GAS, integer(maxSwapGas)).txHash;
+    }
+
+    private static Hash256 setExitFee(Account caller, BigInteger exitFee) throws Throwable {
+        return invoke(cNeo, caller, SET_EXIT_FEE, integer(exitFee)).txHash;
     }
 
     private static Hash256 setBurgerAgentScriptHash(Account caller, SmartContract contract, Hash160 burgerAgent) throws Throwable {

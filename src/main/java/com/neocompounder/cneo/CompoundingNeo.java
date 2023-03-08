@@ -66,32 +66,34 @@ public class CompoundingNeo {
     private static final int INITIAL_MAX_SLIPPAGE_BASIS_POINTS() { return 1000; }
     // 5000 GAS
     private static final int INITIAL_MAX_SWAP_GAS() { return StringLiteralHelper.stringToInt("500000000000"); }
+    // 0.5% in basis points
+    private static final int INITIAL_EXIT_FEE() { return 50; }
     private static final int DECIMALS() { return 8; }
     private static final String SYMBOL() { return "cNEO"; }
     private static final String BALANCE_OF() { return "balanceOf"; }
 
     // Keys
-    private static final byte[] OWNER_KEY() { return new byte[]{0x00}; }
-    private static final byte[] SUPPLY_KEY() { return new byte[]{0x01}; }
-    private static final byte[] MAX_SUPPLY_KEY() { return new byte[]{0x03}; }
-    private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x04}; }
-    private static final byte[] SWAP_FACTORY_HASH_KEY() { return new byte[]{0x05}; }
-    private static final byte[] SWAP_PAIR_HASH_KEY() { return new byte[]{0x06}; }
-    private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x07}; }
-    private static final byte[] LAST_COMPOUNDED_KEY() { return new byte[]{0x08}; }
-    private static final byte[] COMPOUND_PERIOD_KEY() { return new byte[]{0x09}; }
-    private static final byte[] FEE_BASIS_POINTS_KEY() { return new byte[]{0x0a}; }
-    private static final byte[] GAS_REWARD_KEY() { return new byte[]{0x0b}; }
+    private static final byte[] OWNER_KEY() { return new byte[]{0x20}; }
+    private static final byte[] SUPPLY_KEY() { return new byte[]{0x21}; }
+    private static final byte[] MAX_SUPPLY_KEY() { return new byte[]{0x23}; }
+    private static final byte[] BNEO_HASH_KEY() { return new byte[]{0x24}; }
+    private static final byte[] SWAP_FACTORY_HASH_KEY() { return new byte[]{0x25}; }
+    private static final byte[] SWAP_PAIR_HASH_KEY() { return new byte[]{0x26}; }
+    private static final byte[] SWAP_ROUTER_HASH_KEY() { return new byte[]{0x27}; }
+    private static final byte[] LAST_COMPOUNDED_KEY() { return new byte[]{0x28}; }
+    private static final byte[] COMPOUND_PERIOD_KEY() { return new byte[]{0x29}; }
+    private static final byte[] FEE_BASIS_POINTS_KEY() { return new byte[]{0x2a}; }
+    private static final byte[] GAS_REWARD_KEY() { return new byte[]{0x2b}; }
+    private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x2c}; }
+    private static final byte[] MAX_GAS_REWARD_KEY() { return new byte[]{0x2d}; }
+    private static final byte[] MAX_FEE_BASIS_POINTS_KEY() { return new byte[]{0x2e}; }
+    private static final byte[] MAX_SLIPPAGE_BASIS_POINTS_KEY() { return new byte[]{0x2f}; }
+    private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x30}; }
+    private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x31}; }
+    private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x32}; }
+    private static final byte[] EXIT_FEE_KEY() { return new byte[]{0x33}; }
 
-    private static StorageMap BALANCE_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x0c}); }
-
-    private static final byte[] VOTER_HASH_KEY() { return new byte[]{0x0d}; }
-    private static final byte[] MAX_GAS_REWARD_KEY() { return new byte[]{0x0e}; }
-    private static final byte[] MAX_FEE_BASIS_POINTS_KEY() { return new byte[]{0x0f}; }
-    private static final byte[] MAX_SLIPPAGE_BASIS_POINTS_KEY() { return new byte[]{0x10}; }
-    private static final byte[] APPROVED_SWAP_QUANTITY_KEY() { return new byte[]{0x11}; }
-    private static final byte[] SWAP_PAIR_GAS_INDEX_KEY() { return new byte[]{0x12}; }
-    private static final byte[] MAX_SWAP_GAS_KEY() { return new byte[]{0x13}; }
+    private static StorageMap BALANCE_MAP() { return new StorageMap(Storage.getStorageContext(), new byte[]{0x40}); }
 
     // Events
     @DisplayName("Mint")
@@ -130,6 +132,9 @@ public class CompoundingNeo {
 
     @DisplayName("SetMaxSwapGas")
     private static Event1Arg<Integer> onSetMaxSwapGas;
+
+    @DisplayName("SetExitFee")
+    private static Event1Arg<Integer> onSetExitFee;
 
     @DisplayName("SetMaxSupply")
     private static Event1Arg<Integer> onSetMaxSupply;
@@ -382,6 +387,20 @@ public class CompoundingNeo {
     public static int getMaxSwapGas() {
         final Integer storageVal = Storage.getInt(RTX(), MAX_SWAP_GAS_KEY());
         return storageVal == null ? INITIAL_MAX_SWAP_GAS() : storageVal;
+    }
+
+    public static void setExitFee(int exitFee) {
+        validateOwner("setExitFee");
+        validatePositiveNumber(exitFee, "exitFee");
+
+        Storage.put(CTX(), EXIT_FEE_KEY(), exitFee);
+        onSetExitFee.fire(exitFee);
+    }
+
+    @Safe
+    public static int getExitFee() {
+        final Integer storageVal = Storage.getInt(RTX(), EXIT_FEE_KEY());
+        return storageVal == null ? INITIAL_EXIT_FEE() : storageVal;
     }
 
     @Safe
@@ -726,10 +745,20 @@ public class CompoundingNeo {
         Hash160 cneoHash = Runtime.getExecutingScriptHash();
         FungibleToken bneoContract = new FungibleToken(getBneoScriptHash());
 
-        int bneoToCneoRatio = getReserveRatio();
-        int computedBneoQuantity = (bneoToCneoRatio * cneoQuantity ) / FLOAT_MULTIPLIER();
-        // bneoQuantity can be greater than bneoReserves due to float precision
-        int bneoQuantity = Math.min(computedBneoQuantity, getTotalReserves());
+        // Special case to retrieve all bNEO if all remaining cNEO are burned
+        int bneoQuantity;
+        if (cneoQuantity == totalSupply()) {
+            bneoQuantity = getTotalReserves();
+        // Otherwise, apply an exit fee to safeguard against
+        // attackers abusing compound times
+        } else {
+            int basisPoints = BASIS_POINTS();
+            int bneoToCneoRatio = getReserveRatio();
+            int computedBneoQuantity = (bneoToCneoRatio * cneoQuantity ) / FLOAT_MULTIPLIER();
+            int clippedBneoQuantity = (computedBneoQuantity * (basisPoints - getExitFee())) / basisPoints;
+            // bneoQuantity can be greater than bneoReserves due to float precision
+            bneoQuantity = Math.min(clippedBneoQuantity, getTotalReserves());
+        }
 
         burn(cneoHash, cneoQuantity);
 
