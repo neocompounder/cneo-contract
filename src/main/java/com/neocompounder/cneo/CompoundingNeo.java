@@ -884,7 +884,7 @@ public class CompoundingNeo {
         int beforeBalance = (int) Contract.call(bneoHash, balanceOf, CallFlags.ReadOnly, new Object[]{cneoHash});
         Hash160[] paths = new Hash160[]{ gasContract.getHash(), bneoHash };
         int minBneoIn = computeMinBneoIn(gasQuantity);
-        int deadline = Runtime.getTime() + 30;
+        int deadline = Runtime.getTime();
         addToApprovedSwapQuantity(gasQuantity);
         boolean swapSuccess = swapRouterContract.swapTokenInForTokenOut(gasQuantity, minBneoIn, paths, deadline);
         assert swapSuccess;
