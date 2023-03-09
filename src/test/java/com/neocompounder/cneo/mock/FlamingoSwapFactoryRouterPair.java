@@ -109,6 +109,18 @@ public class FlamingoSwapFactoryRouterPair {
         return (List<Integer>) (new StdLib()).deserialize(Storage.get(ctx, RESERVES_KEY));
     }
 
+    public static int getAmountOut(int amountIn, int reserveIn, int reserveOut) {
+        int amountInWithFee = amountIn * 997;
+        int numerator = amountInWithFee * reserveOut;
+        int denominator = reserveIn * 1000 + amountInWithFee;
+        int amountOut = numerator / denominator;
+        return amountOut;
+    }
+
+    public static List<Integer> getReserves(Hash160 tokenA, Hash160 tokenB) {
+        return getReserves();
+    }
+
     // Since this is a mock, we only support one way swaps
     @OnNEP17Payment
     public static void onPayment(Hash160 from, int amount, Object data) throws Exception {
