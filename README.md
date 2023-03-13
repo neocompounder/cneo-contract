@@ -20,15 +20,15 @@ They can later burn their `cNEO` tokens to redeem the underlying `bNEO`, which w
 
 ### Testnet
 
-Contract Address: `NaWuywUm5W91L1VMk41Cy2iSvixmDoMaKT`
+Contract Address: `NfSbGMZqj4pZtDJ3QDpTUNbduMTT8VG2fA`
 
-Script Hash: `0x74062287a66ddf4986ba2c5d7c20e09b32a52da0`
+Script Hash: `0x9d2f85888566794b1a41739e8bb23d8479fc34d6`
 
 ### Mainnet
 
-Contract Address: `NU1ATfppo3phxMasyxj7DMFHT9DgbuxgPP`
+Contract Address: `NVuc1YN7gwhtdRTA2WEr69GhJphxS95S1h`
 
-Script Hash: `0xc7b6f90dac749daa604a2cbe93243496597fbc58`
+Script Hash: `0x38bcb5d4802964e595786d2621dbac9cb6949f6d`
 
 ---
 
@@ -187,6 +187,10 @@ The `compoundPeriod` is adjustable and will be continuously tweaked to ensure th
 This is to ensure that it will not be profitable for an attacker to move the `bNEO-GAS` pool in anticipation of the `compound` call on the next block.
 Initially, `compoundPeriod` will be set to `1 week`.
 This can be set to `1 day` or even smaller depending on the eventual growth of `cNEO`.
+
+### Exit Fee
+
+NeoCompounder applies an exit fee of `0.5%` to `cNEO` burn operations to ensure that it is not profitable for an attacker to enter `cNEO` immediately before compounding and exit immediately after.
 
 ### Voting
 
