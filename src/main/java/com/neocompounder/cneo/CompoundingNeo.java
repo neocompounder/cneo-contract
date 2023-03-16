@@ -879,7 +879,7 @@ public class CompoundingNeo {
         return bneoQuantity;
     }
 
-    public static int computeMinBneoIn(int gasQuantity) {
+    private static int computeMinBneoIn(int gasQuantity) {
         GasToken gasContract = new GasToken();
         FlamingoSwapRouterContract swapRouterContract = new FlamingoSwapRouterContract(getSwapRouterScriptHash());
 

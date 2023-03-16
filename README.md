@@ -18,17 +18,17 @@ They can later burn their `cNEO` tokens to redeem the underlying `bNEO`, which w
 
 ## Contract Deployments
 
-### Testnet
-
-Contract Address: `NfSbGMZqj4pZtDJ3QDpTUNbduMTT8VG2fA`
-
-Script Hash: `0x9d2f85888566794b1a41739e8bb23d8479fc34d6`
-
 ### Mainnet
 
-Contract Address: `NVuc1YN7gwhtdRTA2WEr69GhJphxS95S1h`
+Contract Address: [`NVuc1YN7gwhtdRTA2WEr69GhJphxS95S1h`](https://explorer.onegate.space/accountprofile/0x38bcb5d4802964e595786d2621dbac9cb6949f6d)
 
-Script Hash: `0x38bcb5d4802964e595786d2621dbac9cb6949f6d`
+Script Hash: [`0x38bcb5d4802964e595786d2621dbac9cb6949f6d`](https://explorer.onegate.space/NEP17tokeninfo/0x38bcb5d4802964e595786d2621dbac9cb6949f6d)
+
+### Testnet
+
+Contract Address: [`NfSbGMZqj4pZtDJ3QDpTUNbduMTT8VG2fA`](https://testmagnet.explorer.onegate.space/accountprofile/0x9d2f85888566794b1a41739e8bb23d8479fc34d6)
+
+Script Hash: [`0x9d2f85888566794b1a41739e8bb23d8479fc34d6`](https://testmagnet.explorer.onegate.space/NEP17tokeninfo/0x9d2f85888566794b1a41739e8bb23d8479fc34d6)
 
 ---
 
@@ -47,23 +47,24 @@ If the user transfers `x NEO`, the contract mints `x bNEO` by locking up this `N
 Compounding follows the following steps:
 1. A caller invokes the `compound` method. This is only callable once every `compoundPeriod`.
 2. The `cNEO` contract claims `GAS` for all of its underlying `bNEO` reserves.
-3. The `cNEO` contract sets aside `feePercent GAS` for its operations.
+3. The `cNEO` contract sets aside `feeBasisPoints GAS` for its operations.
 5. The `cNEO` contract takes the remaining `GAS` and swaps it for `y bNEO` on the Flamingo `bNEO-GAS` pool.
 6. The `cNEO` contract updates `bneoReserves = x + y` 
 7. The `cNEO` contract rewards the caller of `compound` with a small amount of GAS.
 
-An invocation of `compound` is expected to cost `~0.23 GAS`.
+An invocation of `compound` is expected to cost `~0.28 GAS`.
 The caller will be rewarded with a small bonus over this quantity to cover the invocation fees and pourboire.
 
 ### Burn
-After the first mint and comounding, we now have `x cNEO` backed by `x + y bNEO`.
-When a user burns `cNEO`, they will now receive `(x + y) / x bNEO` for every `cNEO` burned.
-For example, if `x == 10` and `y == 1`, then each `cNEO` can be burned for `1.1 bNEO`.
+After the first mint and compounding, we now have `x cNEO` backed by `x + y bNEO`.
+When a user burns `cNEO`, they will now receive `(x + y) / x bNEO` for every `cNEO` burned, with a `0.5%` exit fee.
+The exit fee remains in the contract as additional profit for other `cNEO` holders.
+For example, if `x == 10` and `y == 1`, then each `cNEO` can be burned for `1.0945 bNEO`.
 
 ### Additional Mint
 We still have the ratio of `x cNEO` to `x + y bNEO`.
 Any new `cNEO` mints will now be minted in the ratio of `x / (x + y) cNEO` per `x bNEO`.
-For example, if `x == 10` and `y == 1`, then each `bNEO` will now mint `1 / 1.1 cNEO`.
+For example, after the previous burn operation, each `bNEO` will now mint `1 / 1.0945 cNEO`.
 
 ### Max Supply
 Initially, `cNEO` will have a `maxSupply` of `1_000_000.00000000`.
@@ -71,8 +72,8 @@ This is another mechanism to prevent attackers from profiting from the `compound
 This cap is adjustable and will be revisited if it is ever close to being breached.
 
 ### Top Up GAS
-With enough `bNEO` reserves, NeoCompounder expects to be able to fund its own operations through the `feePercent GAS` that it sets aside from each compound operation.
-Until then, anyone can top up the contract's `GAS` reserves by tranferring `GAS` to the contract with a single string parameter `TOP_UP_GAS`.
+With enough `bNEO` reserves, NeoCompounder expects to be able to fund its own operations through the `feeBasisPoints GAS` that it sets aside from each compound operation.
+Until then, anyone can top up the contract's `GAS` reserves by tranferring `GAS` to the contract with null data.
 
 ---
 
@@ -138,11 +139,6 @@ cNEO      is the NeoCompounder contract
 account   is the address of the transaction signer
 ```
 
-Because the call to `compound` must contain the `cNEO` contract as a valid witness for the `GAS` transfer to the `bNEO-GAS` pool,
-the `cNEO` contract must also be listed as a witness on the transaction.
-To preclude the vulnerability in which an attacker repeatedly invokes FAULT transactions with the contract's `GAS` reserves,
-the signers and witnesses must be ordered as `(account, cNEO)`.
-
 ---
 
 ## Events
@@ -179,7 +175,7 @@ Furthermore, because the contract is fully open-source, anyone can deploy a new 
 
 In order to decentralize the operations as much as possible, `cNEO` allows anyone to call the `compound` method, provided that `compoundPeriod` has elapsed since the previous call.
 The contract sends `GAS` back to the caller to make the call profitable.
-`cNEO` funds these compounding calls by taking `feePercent` of the `GAS` claimed at every call of `compound` in its treasury.
+`cNEO` funds these compounding calls by taking `feeBasisPoints` of the `GAS` claimed at every call of `compound` in its treasury.
 
 ### Compound Period
 
